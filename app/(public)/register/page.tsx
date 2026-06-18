@@ -78,8 +78,11 @@ export default function RegisterPage() {
         <div className="card p-5">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
-              <label className="label">Full Name</label>
+              <label htmlFor="fullName" className="label">
+                Full Name
+              </label>
               <input
+                id="fullName"
                 {...register("fullName")}
                 className="input"
                 placeholder="e.g. Ramanna Goud"
@@ -89,8 +92,11 @@ export default function RegisterPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="label">Age</label>
+                <label htmlFor="age" className="label">
+                  Age
+                </label>
                 <input
+                  id="age"
                   {...register("age", { valueAsNumber: true })}
                   type="number"
                   className="input"
@@ -101,8 +107,10 @@ export default function RegisterPage() {
                 {errors.age && <p className="error-msg">{errors.age.message}</p>}
               </div>
               <div>
-                <label className="label">Gender</label>
-                <select {...register("gender")} className="input">
+                <label htmlFor="gender" className="label">
+                  Gender
+                </label>
+                <select id="gender" {...register("gender")} className="input">
                   <option value="">Select</option>
                   <option value="MALE">Male</option>
                   <option value="FEMALE">Female</option>
@@ -114,8 +122,11 @@ export default function RegisterPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="label">Village</label>
+                <label htmlFor="village" className="label">
+                  Village
+                </label>
                 <input
+                  id="village"
                   {...register("village")}
                   className="input"
                   placeholder="Kothapally"
@@ -123,8 +134,11 @@ export default function RegisterPage() {
                 {errors.village && <p className="error-msg">{errors.village.message}</p>}
               </div>
               <div>
-                <label className="label">District</label>
+                <label htmlFor="district" className="label">
+                  District
+                </label>
                 <input
+                  id="district"
                   {...register("district")}
                   className="input"
                   placeholder="Nalgonda"
@@ -135,8 +149,11 @@ export default function RegisterPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="label">Aadhaar Last 4</label>
+                <label htmlFor="aadhaarLast4" className="label">
+                  Aadhaar Last 4
+                </label>
                 <input
+                  id="aadhaarLast4"
                   {...register("aadhaarLast4")}
                   className="input"
                   placeholder="1234"
@@ -148,8 +165,11 @@ export default function RegisterPage() {
                 )}
               </div>
               <div>
-                <label className="label">Phone (E.164)</label>
+                <label htmlFor="phone" className="label">
+                  Phone (E.164)
+                </label>
                 <input
+                  id="phone"
                   {...register("phone")}
                   className="input"
                   placeholder="+919876543210"

@@ -5,18 +5,23 @@
   "scripts": {
     "dev": "next dev",
     "dev:stack": "concurrently -n web,api -c blue,magenta \"next dev\" \"npm run dev --prefix api-fly\"",
-    "build": "npx prisma generate && next build",
-    "postinstall": "npx prisma generate",
+    "build": "npx --yes prisma@5.22.0 generate && next build",
+    "postinstall": "npx --yes prisma@5.22.0 generate",
     "start": "next start",
     "lint": "next lint",
-    "db:migrate": "prisma migrate dev",
+    "db:migrate": "npx --yes prisma@5.22.0 migrate dev",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "test:e2e": "npx --yes @playwright/test test",
+    "test:e2e:ui": "npx --yes @playwright/test test --ui",
+    "test:e2e:headed": "npx --yes @playwright/test test --headed",
+    "test:e2e:install": "npx --yes @playwright/test install chromium"
   },
   "dependencies": {
+    "@ducanh2912/next-pwa": "^10.2.9",
     "@hookform/resolvers": "^3.10.0",
     "@neondatabase/auth": "^0.4.2-beta",
-    "@prisma/client": "^5.22.0",
+    "@prisma/client": "5.22.0",
     "@supabase/supabase-js": "^2.49.0",
     "clsx": "^2.1.1",
     "lucide-react": "^1.7.0",
@@ -32,16 +37,18 @@
     "seed": "tsx prisma/seed.ts"
   },
   "devDependencies": {
+    "@playwright/test": "^1.49.1",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "autoprefixer": "^10.4.20",
     "concurrently": "^9.2.1",
     "dotenv": "^17.3.1",
+    "es-abstract": "^1.24.2",
     "eslint": "^8",
     "eslint-config-next": "14.2.35",
     "postcss": "^8",
-    "prisma": "^5.22.0",
+    "prisma": "5.22.0",
     "tailwindcss": "^3.4.1",
     "tsx": "^4.19.4",
     "typescript": "^5"

@@ -7,3 +7,19 @@ api-fly/dist/
 .env
 *.tsbuildinfo
 next-env.d.ts
+
+.vercel
+
+# @ducanh2912/next-pwa (generated on production build)
+/public/sw.js
+/public/sw.js.map
+/public/workbox-*.js
+/public/worker-*.js
+/public/fallback-*.js
+/public/swe-worker-*.js
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

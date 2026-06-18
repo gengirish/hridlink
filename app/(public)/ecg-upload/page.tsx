@@ -130,6 +130,7 @@ export default function ECGUploadPage() {
               <input
                 type="tel"
                 className="input flex-1"
+                aria-label="Patient phone number"
                 placeholder="+919876543210"
                 value={phoneQuery}
                 onChange={(e) => setPhoneQuery(e.target.value)}
@@ -140,6 +141,7 @@ export default function ECGUploadPage() {
                 onClick={searchPatient}
                 disabled={searching}
                 className="btn-secondary px-3"
+                aria-label="Search patient by phone"
               >
                 <Search className="w-4 h-4" />
               </button>

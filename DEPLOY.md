@@ -94,3 +94,12 @@ Or use `npm run dev:stack` from the repo root after installing root `concurrentl
 ## 4. Optional hardening
 
 - Restrict Fly app to Vercel egress IPs (advanced) or use a shared `X-Internal-Secret` header from Vercel rewrites (would require a small custom proxy instead of bare rewrites).
+
+## 5. E2E (Playwright)
+
+```bash
+npm run test:e2e:install   # Chromium (first time)
+npm run test:e2e           # starts `next dev` unless already running
+```
+
+See `tests/e2e/README.md`. Tests mock `/api/*` so a local DB is not required for the default suite.

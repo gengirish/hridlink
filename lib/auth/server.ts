@@ -9,9 +9,21 @@ function neonAuthEnv() {
   }
 
   if (process.env.NODE_ENV === "production") {
-    throw new Error(
-      "NEON_AUTH_BASE_URL and NEON_AUTH_COOKIE_SECRET (32+ characters) are required in production. See https://neon.com/docs/auth/overview"
+    /** `next build` on Vercel runs server layouts; env vars are not always needed for the compile graph. */
+    const isVercelNpmBuild =
+      process.env.VERCEL === "1" && process.env.npm_lifecycle_event === "build";
+    if (!isVercelNpmBuild) {
+      throw new Error(
+        "NEON_AUTH_BASE_URL and NEON_AUTH_COOKIE_SECRET (32+ characters) are required in production. See https://neon.com/docs/auth/overview"
+      );
+    }
+    console.warn(
+      "[auth] Vercel production build: NEON_AUTH_* missing — using placeholders for build only. Set secrets on the Vercel project for runtime."
     );
+    return {
+      baseUrl: baseUrl || "http://127.0.0.1:9",
+      cookies: { secret: (cookieSecret && cookieSecret.length >= 32 ? cookieSecret : "01234567890123456789012345678901") as string },
+    };
   }
 
   console.warn(
