@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200" width="800" height="200">
+  <defs>
+    <pattern id="sg" width="5" height="5" patternUnits="userSpaceOnUse">
+      <path d="M5 0H0V5" fill="none" stroke="#fecdd3" stroke-width="0.4"/>
+    </pattern>
+    <pattern id="lg" width="25" height="25" patternUnits="userSpaceOnUse">
+      <rect width="25" height="25" fill="url(#sg)"/>
+      <path d="M25 0H0V25" fill="none" stroke="#fca5a5" stroke-width="0.7"/>
+    </pattern>
+  </defs>
+  <rect width="800" height="200" fill="#fff"/>
+  <rect width="800" height="200" fill="url(#lg)"/>
+  <!-- Lead label -->
+  <text x="8" y="16" font-family="monospace" font-size="9" fill="#6b7280">Lead II — Sinus Rhythm  60 bpm  25mm/s  10mm/mV</text>
+  <!-- ECG trace: 4 PQRST complexes, baseline y=130 -->
+  <polyline
+    fill="none"
+    stroke="#111827"
+    stroke-width="1.8"
+    stroke-linejoin="round"
+    stroke-linecap="round"
+    points="
+      0,130
+      20,130
+      28,130 32,118 36,130
+      55,130
+      60,133 64,55 68,148 72,130
+      82,130
+      88,130 100,112 112,130
+      140,130
+      160,130
+      168,130 172,118 176,130
+      195,130
+      200,133 204,55 208,148 212,130
+      222,130
+      228,130 240,112 252,130
+      280,130
+      300,130
+      308,130 312,118 316,130
+      335,130
+      340,133 344,55 348,148 352,130
+      362,130
+      368,130 380,112 392,130
+      420,130
+      440,130
+      448,130 452,118 456,130
+      475,130
+      480,133 484,55 488,148 492,130
+      502,130
+      508,130 520,112 532,130
+      560,130
+      580,130
+      588,130 592,118 596,130
+      615,130
+      620,133 624,55 628,148 632,130
+      642,130
+      648,130 660,112 672,130
+      700,130
+      800,130
+    "
+  />
+</svg>

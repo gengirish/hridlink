@@ -35,10 +35,14 @@ async function main() {
     }),
   ]);
 
+  // Sample ECG served from the app's public folder — no Supabase upload needed for seed data
+  const APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? "https://hridlink.vercel.app").replace(/\/$/, "");
+  const SAMPLE_ECG = `${APP_URL}/samples/ecg-sample.svg`;
+
   const ecg1 = await prisma.eCGRecord.create({
     data: {
       patientId: p1.id,
-      fileUrl: "https://example.com/ecg/seed-ecg-1.pdf",
+      fileUrl: SAMPLE_ECG,
       healthWorkerNotes: "Patient reports chest pain since morning.",
       status: ECGStatus.PENDING,
     },
@@ -47,7 +51,7 @@ async function main() {
   const ecg2 = await prisma.eCGRecord.create({
     data: {
       patientId: p1.id,
-      fileUrl: "https://example.com/ecg/seed-ecg-2.pdf",
+      fileUrl: SAMPLE_ECG,
       healthWorkerNotes: "Routine check.",
       status: ECGStatus.REVIEWED,
     },
@@ -56,7 +60,7 @@ async function main() {
   const ecg3 = await prisma.eCGRecord.create({
     data: {
       patientId: p2.id,
-      fileUrl: "https://example.com/ecg/seed-ecg-3.pdf",
+      fileUrl: SAMPLE_ECG,
       healthWorkerNotes: "Shortness of breath, irregular heartbeat.",
       status: ECGStatus.URGENT,
     },

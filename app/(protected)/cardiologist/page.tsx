@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Stethoscope, ExternalLink, X, Clock } from "lucide-react";
+import { Stethoscope, ExternalLink, X, Clock, RefreshCw } from "lucide-react";
 import { submitFindingSchema, type SubmitFindingInput } from "@/lib/validators";
 import type { ApiResponse } from "@/lib/api-response";
 
@@ -17,6 +17,8 @@ type ECGRow = {
   patient: { fullName: string; age: number; village: string; district: string };
   finding: { severity: string } | null;
 };
+
+const IMAGE_EXTS = /\.(svg|png|jpg|jpeg|webp|gif)$/i;
 
 function StatusBadge({ status }: { status: string }) {
   if (status === "PENDING") return <span className="badge-pending">Pending</span>;
@@ -37,6 +39,7 @@ export default function CardiologistPage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<ECGRow | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState(new Date());
 
   const {
     register,
@@ -45,20 +48,24 @@ export default function CardiologistPage() {
     formState: { errors },
   } = useForm<SubmitFindingInput>({ resolver: zodResolver(submitFindingSchema) });
 
-  async function loadECGs() {
-    setLoading(true);
+  const loadECGs = useCallback(async () => {
     try {
       const res = await fetch("/api/ecg?status=PENDING");
       const json: ApiResponse<ECGRow[]> = await res.json();
-      if (json.success && json.data) setEcgs(json.data);
+      if (json.success && json.data) {
+        setEcgs(json.data);
+        setLastRefresh(new Date());
+      }
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     loadECGs();
-  }, []);
+    const timer = setInterval(loadECGs, 30_000);
+    return () => clearInterval(timer);
+  }, [loadECGs]);
 
   async function onSubmitFinding(data: SubmitFindingInput) {
     if (!selected) return;
@@ -86,14 +93,28 @@ export default function CardiologistPage() {
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-8">
       <div className="max-w-3xl mx-auto">
-        <div className="flex items-center gap-2 mb-6">
-          <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center">
-            <Stethoscope className="w-4 h-4 text-white" />
+        <div className="flex items-center justify-between gap-2 mb-6">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center">
+              <Stethoscope className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-slate-800 leading-none">
+                Cardiologist Dashboard
+              </h1>
+              <p className="text-xs text-slate-500">
+                Pending ECG Reviews · auto-refreshes every 30s
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-bold text-slate-800 leading-none">Cardiologist Dashboard</h1>
-            <p className="text-xs text-slate-500">Pending ECG Reviews</p>
-          </div>
+          <button
+            onClick={() => { setLoading(true); loadECGs(); }}
+            className="btn-secondary text-xs gap-1.5"
+            title={`Last: ${lastRefresh.toLocaleTimeString()}`}
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Refresh
+          </button>
         </div>
 
         {loading ? (
@@ -154,17 +175,27 @@ export default function CardiologistPage() {
             </div>
 
             <div className="p-5 space-y-4">
-              <div className="flex gap-2">
-                <a
-                  href={selected.fileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-secondary text-xs gap-1.5"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  View ECG File
-                </a>
-              </div>
+              {/* Inline image preview */}
+              {IMAGE_EXTS.test(selected.fileUrl) && (
+                <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={selected.fileUrl}
+                    alt="ECG scan"
+                    className="w-full object-contain max-h-48"
+                  />
+                </div>
+              )}
+
+              <a
+                href={selected.fileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-secondary text-xs gap-1.5 inline-flex"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Open ECG in New Tab
+              </a>
 
               {selected.healthWorkerNotes && (
                 <div className="rounded-xl bg-amber-50 border border-amber-100 p-3">
@@ -176,7 +207,7 @@ export default function CardiologistPage() {
               <form onSubmit={handleSubmit(onSubmitFinding)} className="space-y-4">
                 <div>
                   <label className="label">Severity</label>
-                  <select {...register("severity")} className="input">
+                  <select {...register("severity")} className="input" autoFocus>
                     <option value="">Select severity</option>
                     <option value="NORMAL">Normal</option>
                     <option value="WATCH">Watch</option>
@@ -211,11 +242,7 @@ export default function CardiologistPage() {
                   )}
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="btn-primary w-full"
-                >
+                <button type="submit" disabled={submitting} className="btn-primary w-full">
                   {submitting ? "Submitting…" : "Submit Finding"}
                 </button>
               </form>
