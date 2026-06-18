@@ -22,11 +22,15 @@ export default defineConfig({
   webServer: skipWebServer
     ? undefined
     : {
-        command: "npm run dev",
+        command: "npm run dev:stack",
         url: baseURL,
         reuseExistingServer: !process.env.CI,
-        timeout: 120_000,
+        timeout: 180_000,
         stdout: "pipe",
         stderr: "pipe",
+        env: {
+          ...process.env,
+          API_UPSTREAM_URL: process.env.API_UPSTREAM_URL ?? "http://127.0.0.1:8080",
+        },
       },
 });

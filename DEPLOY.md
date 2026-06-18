@@ -1,6 +1,6 @@
 # Deploy HridLink (Vercel UI + Fly.io API)
 
-The Next.js app keeps **Neon Auth** on Vercel (`/api/auth/*`, middleware, sign-in pages). All **data** HTTP handlers run on **Fly.io** and are reached through **Vercel rewrites** so the browser still calls same-origin `/api/...` (cookies work).
+The Next.js app keeps **Neon Auth** on Vercel (`/api/auth/*`, middleware, sign-in pages). **All data HTTP handlers live only on Fly.io** — there are no duplicate `app/api/patients` or `app/api/ecg` routes in Next. Traffic is proxied with **rewrites** so the browser still calls same-origin `/api/...` (cookies forwarded to Fly).
 
 ## 1. Fly.io — API
 
@@ -54,20 +54,20 @@ Import the GitHub repo (or link CLI). Set environment variables:
 
 | Variable | Purpose |
 |----------|---------|
-| `API_UPSTREAM_URL` | Fly app origin **without** trailing slash, e.g. `https://hridlink-api.fly.dev` |
+| `API_UPSTREAM_URL` | **Required** for production builds. Fly origin **without** trailing slash, e.g. `https://hridlink-api.fly.dev` (build fails if unset) |
 | `DATABASE_URL`, `DIRECT_URL` | Same Neon URLs (layouts use Prisma for role checks) |
 | `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET` | Neon Auth (must match Fly for session cookies forwarded to `/get-session`) |
 | `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY` | Storage (browser + server components if any) |
 | `MSG91_*`, `NEXT_PUBLIC_APP_URL` | Notifications + links |
 
-`next.config.mjs` rewrites these paths to Fly when `API_UPSTREAM_URL` is set:
+`next.config.mjs` always rewrites these paths to `API_UPSTREAM_URL` in production; in local dev, set the variable or rewrites are skipped and those URLs **404** (by design — no silent fallback to a local Prisma API in Next).
 
 - `/api/patients`
 - `/api/ecg`
 - `/api/ecg/:id/finding`
 - `/api/admin/stats`
 
-`/api/auth/*` stays on Vercel.
+`/api/auth/*` stays on Vercel only.
 
 ## 3. Local full stack
 
@@ -89,7 +89,7 @@ API_UPSTREAM_URL=http://127.0.0.1:8080
 npm run dev
 ```
 
-Or use `npm run dev:stack` from the repo root after installing root `concurrently`.
+Use **`npm run dev:stack`** from the repo root (starts Next + `api-fly`). Set `API_UPSTREAM_URL=http://127.0.0.1:8080` in `.env.local` or export it in the shell so rewrites hit local Fly API.
 
 ## 4. Optional hardening
 
@@ -99,7 +99,7 @@ Or use `npm run dev:stack` from the repo root after installing root `concurrentl
 
 ```bash
 npm run test:e2e:install   # Chromium (first time)
-npm run test:e2e           # starts `next dev` unless already running
+npm run test:e2e           # starts `npm run dev:stack` (Next + local Fly API) unless skipped
 ```
 
-See `tests/e2e/README.md`. Tests mock `/api/*` so a local DB is not required for the default suite.
+See `tests/e2e/README.md`. Default suite **mocks `/api/*`** so it does not require a live Neon/Supabase; the dev server still runs with rewrites to `http://127.0.0.1:8080` by default.
