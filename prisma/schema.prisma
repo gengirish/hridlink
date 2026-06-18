@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  HEALTH_WORKER
+  CARDIOLOGIST
+  ADMIN
+}
+
+enum ECGStatus {
+  PENDING
+  REVIEWED
+  URGENT
+}
+
+enum Severity {
+  NORMAL
+  WATCH
+  URGENT
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+model User {
+  id          String   @id @default(cuid())
+  /// Neon Auth user id (`session.user.id`). DB column kept as `clerkUserId` for compatibility.
+  authUserId  String   @unique @map("clerkUserId")
+  email       String   @unique
+  name        String
+  phone       String?
+  role        UserRole @default(HEALTH_WORKER)
+  createdAt   DateTime @default(now())
+
+  @@map("users")
+}
+
+model Patient {
+  id             String   @id @default(cuid())
+  fullName       String
+  age            Int
+  gender         Gender
+  village        String
+  district       String
+  aadhaarLast4   String
+  phone          String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  ecgRecords ECGRecord[]
+
+  @@index([phone])
+  @@map("patients")
+}
+
+model ECGRecord {
+  id                 String    @id @default(cuid())
+  patientId          String
+  fileUrl            String
+  healthWorkerNotes  String?
+  status             ECGStatus @default(PENDING)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  patient  Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  finding  Finding?
+
+  @@index([patientId])
+  @@index([status, createdAt])
+  @@map("ecg_records")
+}
+
+model Finding {
+  id             String    @id @default(cuid())
+  ecgRecordId    String    @unique
+  severity       Severity
+  clinicalNotes  String
+  recommendation String
+  createdAt      DateTime  @default(now())
+
+  ecgRecord ECGRecord @relation(fields: [ecgRecordId], references: [id], onDelete: Cascade)
+
+  @@map("findings")
+}
