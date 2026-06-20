@@ -1,5 +1,7 @@
 # Deploy HridLink (Vercel UI + Fly.io API)
 
+**First time wiring your live Vercel URL?** Follow [docs/DEPLOYED-URL-ONBOARDING.md](docs/DEPLOYED-URL-ONBOARDING.md) (Neon Auth origin, `NEXT_PUBLIC_APP_URL`, redeploys, first user, role promotion).
+
 The Next.js app keeps **Neon Auth** on Vercel (`/api/auth/*`, middleware, sign-in pages). **All data HTTP handlers live only on Fly.io** — there are no duplicate `app/api/patients` or `app/api/ecg` routes in Next. Traffic is proxied with **rewrites** so the browser still calls same-origin `/api/...` (cookies forwarded to Fly).
 
 ## 1. Fly.io — API
@@ -16,6 +18,7 @@ Edit `fly.api.toml` if you change the app name.
 Set secrets (use your real values):
 
 ```bash
+# Generate a strong shared secret: openssl rand -hex 32
 fly secrets set --config fly.api.toml \
   DATABASE_URL="postgresql://...pooler...?sslmode=require" \
   DIRECT_URL="postgresql://...direct...?sslmode=require" \
@@ -27,7 +30,8 @@ fly secrets set --config fly.api.toml \
   MSG91_CARDIOLOGIST_PHONE="+91..." \
   MSG91_TEMPLATE_ID_CARDIOLOGIST="..." \
   MSG91_TEMPLATE_ID_HEALTH_WORKER="..." \
-  NEXT_PUBLIC_APP_URL="https://your-app.vercel.app"
+  NEXT_PUBLIC_APP_URL="https://your-app.vercel.app" \
+  INTERNAL_API_SECRET="<same 32-char hex as Vercel INTERNAL_API_SECRET>"
 ```
 
 Deploy:
@@ -54,11 +58,12 @@ Import the GitHub repo (or link CLI). Set environment variables:
 
 | Variable | Purpose |
 |----------|---------|
-| `API_UPSTREAM_URL` | **Required** for production builds. Fly origin **without** trailing slash, e.g. `https://hridlink-api.fly.dev` (build fails if unset) |
-| `DATABASE_URL`, `DIRECT_URL` | Same Neon URLs (layouts use Prisma for role checks) |
-| `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET` | Neon Auth (must match Fly for session cookies forwarded to `/get-session`) |
-| `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY` | Storage (browser + server components if any) |
-| `MSG91_*`, `NEXT_PUBLIC_APP_URL` | Notifications + links |
+| `API_UPSTREAM_URL` | **Required** in production. Fly origin without trailing slash, e.g. `https://hridlink-api.fly.dev` |
+| `INTERNAL_API_SECRET` | **Required** in production. 32-char hex shared with Fly — middleware injects `X-Internal-Secret` header; Fly rejects any request missing it. Generate: `openssl rand -hex 32` |
+| `DATABASE_URL`, `DIRECT_URL` | Neon DB URLs (layouts use Prisma for role checks) |
+| `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET` | Neon Auth (must match Fly for session cookie forwarding) |
+| `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY` | Storage |
+| `MSG91_*`, `NEXT_PUBLIC_APP_URL` | WhatsApp notifications + deep-link URLs |
 
 `next.config.mjs` always rewrites these paths to `API_UPSTREAM_URL` in production; in local dev, set the variable or rewrites are skipped and those URLs **404** (by design — no silent fallback to a local Prisma API in Next).
 

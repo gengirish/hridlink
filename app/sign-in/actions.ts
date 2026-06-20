@@ -1,6 +1,7 @@
 "use server";
 
 import { auth } from "@/lib/auth/server";
+import { syncAppUserFromSession } from "@/lib/auth/sync-app-user";
 import { redirect } from "next/navigation";
 
 export async function signInWithEmail(
@@ -16,6 +17,8 @@ export async function signInWithEmail(
   if (error) {
     return { error: error.message || "Failed to sign in. Try again." };
   }
+
+  await syncAppUserFromSession();
 
   if (returnTo.startsWith("/") && !returnTo.startsWith("//")) {
     redirect(returnTo);

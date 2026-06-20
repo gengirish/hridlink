@@ -2,6 +2,12 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// Keeps api-fly/node_modules/.prisma/client in sync with the root schema
+generator clientApifly {
+  provider = "prisma-client-js"
+  output   = "../api-fly/node_modules/.prisma/client"
+}
+
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
@@ -42,6 +48,8 @@ model User {
   role        UserRole @default(HEALTH_WORKER)
   createdAt   DateTime @default(now())
 
+  uploadedECGs ECGRecord[] @relation("ECGUploader")
+
   @@map("users")
 }
 
@@ -59,21 +67,23 @@ model Patient {
 
   ecgRecords ECGRecord[]
 
-  @@index([phone])
   @@map("patients")
 }
 
 model ECGRecord {
   id                 String    @id @default(cuid())
   patientId          String
+  uploadedById       String?
   fileUrl            String
+  storagePath        String?
   healthWorkerNotes  String?
   status             ECGStatus @default(PENDING)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  patient  Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  finding  Finding?
+  patient    Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  uploadedBy User?     @relation("ECGUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  finding    Finding?
 
   @@index([patientId])
   @@index([status, createdAt])

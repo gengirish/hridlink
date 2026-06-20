@@ -1,6 +1,7 @@
 "use server";
 
 import { auth } from "@/lib/auth/server";
+import { syncAppUserFromSession } from "@/lib/auth/sync-app-user";
 import { redirect } from "next/navigation";
 
 export async function signUpWithEmail(
@@ -24,6 +25,8 @@ export async function signUpWithEmail(
   if (error) {
     return { error: error.message || "Failed to create account." };
   }
+
+  await syncAppUserFromSession();
 
   redirect("/");
 }

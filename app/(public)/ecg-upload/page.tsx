@@ -11,6 +11,14 @@ import type { ApiResponse } from "@/lib/api-response";
 type Patient = { id: string; fullName: string; age: number; village: string; district: string };
 type ECGResult = { id: string };
 
+function normalizeIndianPhone(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 10 && /^[6-9]/.test(digits)) return `+91${digits}`;
+  if (digits.length === 12 && digits.startsWith("91") && /^[6-9]/.test(digits[2]!))
+    return `+${digits}`;
+  return raw.trim();
+}
+
 const uploadSchema = z.object({
   patientId: z.string().cuid("Select a valid patient"),
   healthWorkerNotes: z.string().max(1000).optional(),
@@ -38,8 +46,20 @@ export default function ECGUploadPage() {
     setSearching(true);
     setPatient(null);
     try {
-      const res = await fetch(`/api/patients?phone=${encodeURIComponent(phoneQuery.trim())}`);
-      const json: ApiResponse<Patient> = await res.json();
+      const res = await fetch(`/api/patients?phone=${encodeURIComponent(normalizeIndianPhone(phoneQuery))}`, {
+        credentials: "include",
+      });
+      if (res.status === 401 || res.status === 403) {
+        toast.error("Please sign in as a health worker");
+        return;
+      }
+      let json: ApiResponse<Patient>;
+      try {
+        json = (await res.json()) as ApiResponse<Patient>;
+      } catch {
+        toast.error("Could not load patient data");
+        return;
+      }
       if (!json.success || !json.data) {
         toast.error("Patient not found for that phone number");
         return;
@@ -64,8 +84,22 @@ export default function ECGUploadPage() {
       formData.append("patientId", data.patientId);
       if (data.healthWorkerNotes) formData.append("healthWorkerNotes", data.healthWorkerNotes);
 
-      const res = await fetch("/api/ecg", { method: "POST", body: formData });
-      const json: ApiResponse<ECGResult> = await res.json();
+      const res = await fetch("/api/ecg", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (res.status === 401 || res.status === 403) {
+        toast.error("Please sign in as a health worker");
+        return;
+      }
+      let json: ApiResponse<ECGResult>;
+      try {
+        json = (await res.json()) as ApiResponse<ECGResult>;
+      } catch {
+        toast.error("Upload failed");
+        return;
+      }
       if (!json.success || !json.data) {
         toast.error(json.error ?? "Upload failed");
         return;
@@ -131,7 +165,7 @@ export default function ECGUploadPage() {
                 type="tel"
                 className="input flex-1"
                 aria-label="Patient phone number"
-                placeholder="+919876543210"
+                placeholder="9876543210"
                 value={phoneQuery}
                 onChange={(e) => setPhoneQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && searchPatient()}

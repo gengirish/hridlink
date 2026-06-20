@@ -4,18 +4,28 @@ import { useEffect, useState } from "react";
 import { BarChart3, Download, Clock } from "lucide-react";
 import type { ApiResponse } from "@/lib/api-response";
 
+type Patient = { fullName: string; village: string; district: string; phone: string };
+
+type StatsRecord = {
+  id: string;
+  createdAt: string;
+  status: string;
+  patient: Patient;
+  finding: { severity: string; createdAt: string } | null;
+};
+
 type Stats = {
   totalPatients: number;
   totalECGs: number;
   bySeverity: { NORMAL: number; WATCH: number; URGENT: number };
-  records: Array<{
-    id: string;
-    createdAt: string;
-    status: string;
-    patient: { fullName: string; village: string };
-    finding: { severity: string; createdAt: string } | null;
-  }>;
+  records: StatsRecord[];
+  page: number;
+  limit: number;
 };
+
+function csvCell(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
+}
 
 function SeverityBadge({ s }: { s: string }) {
   if (s === "URGENT") return <span className="badge-urgent">Urgent</span>;
@@ -34,18 +44,20 @@ function responseMinutes(createdAt: string, findingAt: string | null) {
 
 function exportCSV(stats: Stats) {
   const rows = [
-    ["Patient", "Village", "Status", "Severity", "Response Time", "Uploaded"],
+    ["Patient", "Village", "District", "Phone", "Status", "Severity", "Response Time", "Uploaded"],
     ...stats.records.map((r) => [
       r.patient.fullName,
       r.patient.village,
+      r.patient.district,
+      r.patient.phone,
       r.status,
       r.finding?.severity ?? "—",
       responseMinutes(r.createdAt, r.finding?.createdAt ?? null),
       new Date(r.createdAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
     ]),
   ];
-  const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
+  const csv = rows.map((row) => row.map((c) => csvCell(String(c))).join(",")).join("\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -59,7 +71,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/admin/stats")
+    fetch("/api/admin/stats?limit=200")
       .then((r) => r.json())
       .then((json: ApiResponse<Stats>) => {
         if (json.success && json.data) setStats(json.data);
@@ -135,30 +147,22 @@ export default function AdminPage() {
             <table className="min-w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-100">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                    Patient
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                    Village
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                    Status
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                    Severity
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                    Response
-                  </th>
+                  {["Patient", "Village", "District", "Status", "Severity", "Response"].map((h) => (
+                    <th
+                      key={h}
+                      className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide"
+                    >
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {stats.records.map((r) => (
                   <tr key={r.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-medium text-slate-800">
-                      {r.patient.fullName}
-                    </td>
+                    <td className="px-4 py-3 font-medium text-slate-800">{r.patient.fullName}</td>
                     <td className="px-4 py-3 text-slate-500">{r.patient.village}</td>
+                    <td className="px-4 py-3 text-slate-500">{r.patient.district}</td>
                     <td className="px-4 py-3">
                       {r.status === "PENDING" ? (
                         <span className="badge-pending">Pending</span>

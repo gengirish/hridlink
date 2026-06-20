@@ -18,7 +18,11 @@ type ECGRow = {
   finding: { severity: string } | null;
 };
 
-const IMAGE_EXTS = /\.(svg|png|jpg|jpeg|webp|gif)$/i;
+type ECGListData = { items: ECGRow[]; total: number; page: number; limit: number };
+
+const IMAGE_EXTS = /\.(svg|png|jpg|jpeg|webp|gif)($|\?)/i;
+
+type StatusFilter = "PENDING" | "ALL";
 
 function StatusBadge({ status }: { status: string }) {
   if (status === "PENDING") return <span className="badge-pending">Pending</span>;
@@ -36,10 +40,12 @@ function timeAgo(iso: string) {
 
 export default function CardiologistPage() {
   const [ecgs, setEcgs] = useState<ECGRow[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<ECGRow | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("PENDING");
 
   const {
     register,
@@ -48,12 +54,14 @@ export default function CardiologistPage() {
     formState: { errors },
   } = useForm<SubmitFindingInput>({ resolver: zodResolver(submitFindingSchema) });
 
-  const loadECGs = useCallback(async () => {
+  const loadECGs = useCallback(async (filter: StatusFilter) => {
     try {
-      const res = await fetch("/api/ecg?status=PENDING");
-      const json: ApiResponse<ECGRow[]> = await res.json();
+      const qs = filter === "PENDING" ? "status=PENDING" : "";
+      const res = await fetch(`/api/ecg?${qs}&limit=50`);
+      const json: ApiResponse<ECGListData> = await res.json();
       if (json.success && json.data) {
-        setEcgs(json.data);
+        setEcgs(json.data.items);
+        setTotal(json.data.total);
         setLastRefresh(new Date());
       }
     } finally {
@@ -62,10 +70,13 @@ export default function CardiologistPage() {
   }, []);
 
   useEffect(() => {
-    loadECGs();
-    const timer = setInterval(loadECGs, 30_000);
+    setLoading(true);
+    loadECGs(statusFilter);
+    // Auto-refresh only when showing pending
+    if (statusFilter !== "PENDING") return;
+    const timer = setInterval(() => loadECGs("PENDING"), 30_000);
     return () => clearInterval(timer);
-  }, [loadECGs]);
+  }, [loadECGs, statusFilter]);
 
   async function onSubmitFinding(data: SubmitFindingInput) {
     if (!selected) return;
@@ -84,7 +95,7 @@ export default function CardiologistPage() {
       toast.success("Finding saved. Health worker notified.");
       setSelected(null);
       reset();
-      loadECGs();
+      loadECGs(statusFilter);
     } finally {
       setSubmitting(false);
     }
@@ -103,25 +114,44 @@ export default function CardiologistPage() {
                 Cardiologist Dashboard
               </h1>
               <p className="text-xs text-slate-500">
-                Pending ECG Reviews · auto-refreshes every 30s
+                {statusFilter === "PENDING"
+                  ? "Pending ECG Reviews · auto-refreshes every 30s"
+                  : `All ECGs · ${total} records`}
               </p>
             </div>
           </div>
           <button
-            onClick={() => { setLoading(true); loadECGs(); }}
+            onClick={() => { setLoading(true); loadECGs(statusFilter); }}
             className="btn-secondary text-xs gap-1.5"
-            title={`Last: ${lastRefresh.toLocaleTimeString()}`}
+            title={`Last refreshed: ${lastRefresh.toLocaleTimeString()}`}
           >
             <RefreshCw className="w-3.5 h-3.5" />
             Refresh
           </button>
         </div>
 
+        {/* Status filter */}
+        <div className="flex gap-2 mb-4">
+          {(["PENDING", "ALL"] as StatusFilter[]).map((f) => (
+            <button
+              key={f}
+              onClick={() => setStatusFilter(f)}
+              className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                statusFilter === f
+                  ? "bg-blue-600 text-white"
+                  : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {f === "PENDING" ? "Pending" : "All ECGs"}
+            </button>
+          ))}
+        </div>
+
         {loading ? (
           <div className="card p-8 text-center text-slate-400 text-sm">Loading ECGs…</div>
         ) : ecgs.length === 0 ? (
           <div className="card p-8 text-center text-slate-400 text-sm">
-            No pending ECGs. All caught up!
+            {statusFilter === "PENDING" ? "No pending ECGs. All caught up!" : "No ECG records found."}
           </div>
         ) : (
           <div className="space-y-3">
@@ -175,7 +205,6 @@ export default function CardiologistPage() {
             </div>
 
             <div className="p-5 space-y-4">
-              {/* Inline image preview */}
               {IMAGE_EXTS.test(selected.fileUrl) && (
                 <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -204,48 +233,55 @@ export default function CardiologistPage() {
                 </div>
               )}
 
-              <form onSubmit={handleSubmit(onSubmitFinding)} className="space-y-4">
-                <div>
-                  <label className="label">Severity</label>
-                  <select {...register("severity")} className="input" autoFocus>
-                    <option value="">Select severity</option>
-                    <option value="NORMAL">Normal</option>
-                    <option value="WATCH">Watch</option>
-                    <option value="URGENT">Urgent</option>
-                  </select>
-                  {errors.severity && <p className="error-msg">{errors.severity.message}</p>}
+              {selected.finding ? (
+                <div className="rounded-xl bg-green-50 border border-green-100 p-3">
+                  <p className="text-xs font-semibold text-green-700 mb-1">Already Reviewed</p>
+                  <p className="text-sm text-green-800">Severity: {selected.finding.severity}</p>
                 </div>
+              ) : (
+                <form onSubmit={handleSubmit(onSubmitFinding)} className="space-y-4">
+                  <div>
+                    <label className="label">Severity</label>
+                    <select {...register("severity")} className="input" autoFocus>
+                      <option value="">Select severity</option>
+                      <option value="NORMAL">Normal</option>
+                      <option value="WATCH">Watch</option>
+                      <option value="URGENT">Urgent</option>
+                    </select>
+                    {errors.severity && <p className="error-msg">{errors.severity.message}</p>}
+                  </div>
 
-                <div>
-                  <label className="label">Clinical Notes</label>
-                  <textarea
-                    {...register("clinicalNotes")}
-                    className="input resize-none"
-                    rows={4}
-                    placeholder="ECG findings, arrhythmia notes, intervals…"
-                  />
-                  {errors.clinicalNotes && (
-                    <p className="error-msg">{errors.clinicalNotes.message}</p>
-                  )}
-                </div>
+                  <div>
+                    <label className="label">Clinical Notes</label>
+                    <textarea
+                      {...register("clinicalNotes")}
+                      className="input resize-none"
+                      rows={4}
+                      placeholder="ECG findings, arrhythmia notes, intervals…"
+                    />
+                    {errors.clinicalNotes && (
+                      <p className="error-msg">{errors.clinicalNotes.message}</p>
+                    )}
+                  </div>
 
-                <div>
-                  <label className="label">Recommendation</label>
-                  <textarea
-                    {...register("recommendation")}
-                    className="input resize-none"
-                    rows={3}
-                    placeholder="Refer to district hospital / continue medication…"
-                  />
-                  {errors.recommendation && (
-                    <p className="error-msg">{errors.recommendation.message}</p>
-                  )}
-                </div>
+                  <div>
+                    <label className="label">Recommendation</label>
+                    <textarea
+                      {...register("recommendation")}
+                      className="input resize-none"
+                      rows={3}
+                      placeholder="Refer to district hospital / continue medication…"
+                    />
+                    {errors.recommendation && (
+                      <p className="error-msg">{errors.recommendation.message}</p>
+                    )}
+                  </div>
 
-                <button type="submit" disabled={submitting} className="btn-primary w-full">
-                  {submitting ? "Submitting…" : "Submit Finding"}
-                </button>
-              </form>
+                  <button type="submit" disabled={submitting} className="btn-primary w-full">
+                    {submitting ? "Submitting…" : "Submit Finding"}
+                  </button>
+                </form>
+              )}
             </div>
           </div>
         </div>

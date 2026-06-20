@@ -1,5 +1,18 @@
 import { z } from "zod";
 
+function normalizeIndianPhone(val: string): string {
+  const digits = val.replace(/\D/g, "");
+  if (digits.length === 10 && /^[6-9]/.test(digits)) return `+91${digits}`;
+  if (digits.length === 12 && digits.startsWith("91") && /^[6-9]/.test(digits[2]!))
+    return `+${digits}`;
+  return val.trim();
+}
+
+const phoneSchema = z
+  .string()
+  .transform(normalizeIndianPhone)
+  .pipe(z.string().regex(/^\+91[6-9]\d{9}$/, "Must be a valid Indian mobile number"));
+
 export const createPatientSchema = z.object({
   fullName: z.string().min(2).max(100),
   age: z.number().int().min(1).max(120),
@@ -7,7 +20,7 @@ export const createPatientSchema = z.object({
   village: z.string().min(1).max(100),
   district: z.string().min(1).max(100),
   aadhaarLast4: z.string().regex(/^\d{4}$/, "Must be exactly 4 digits"),
-  phone: z.string().regex(/^\+91[6-9]\d{9}$/, "Must be E.164 Indian mobile (+91XXXXXXXXXX)"),
+  phone: phoneSchema,
 });
 
 export const createECGSchema = z.object({

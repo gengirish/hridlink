@@ -1,6 +1,6 @@
 import express from "express";
 import multer from "multer";
-import { Gender, UserRole, Severity } from "@prisma/client";
+import { Gender, UserRole, Severity, ECGStatus } from "@prisma/client";
 import { prisma } from "./lib/prisma.js";
 import { ok, err, serverErr } from "./lib/json.js";
 import { createPatientSchema, submitFindingSchema } from "./lib/validators.js";
@@ -8,19 +8,53 @@ import { supabaseAdmin, ECG_BUCKET } from "./lib/supabase.js";
 import { sendToCardiologist, sendToHealthWorker } from "./lib/notify.js";
 import { getSessionAppUser, hasAppRole } from "./lib/session.js";
 
+const staffAccess: UserRole[] = [UserRole.HEALTH_WORKER, UserRole.CARDIOLOGIST, UserRole.ADMIN];
+const ecgListAccess: UserRole[] = [UserRole.CARDIOLOGIST, UserRole.ADMIN];
+const ecgUploadAccess: UserRole[] = [UserRole.HEALTH_WORKER, UserRole.CARDIOLOGIST, UserRole.ADMIN];
+
+const ALLOWED_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "application/pdf",
+]);
+
+const VALID_ECG_STATUSES = new Set<string>(Object.values(ECGStatus));
+
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
 const PORT = Number(process.env.PORT ?? 8080);
+const INTERNAL_SECRET = process.env.INTERNAL_API_SECRET;
 
 app.disable("x-powered-by");
+
+// Verify X-Internal-Secret on all routes except /health
+app.use((req, res, next) => {
+  if (req.path === "/health") return next();
+  if (!INTERNAL_SECRET) {
+    console.warn("[api-fly] INTERNAL_API_SECRET not set — accepting all requests (dev mode)");
+    return next();
+  }
+  if (req.headers["x-internal-secret"] !== INTERNAL_SECRET) {
+    return err(res, "Forbidden", 403);
+  }
+  next();
+});
 
 app.get("/health", (_req, res) => {
   res.status(200).send("ok");
 });
 
+// --- Patients ---
+
 app.get("/api/patients", async (req, res) => {
   try {
+    const session = await getSessionAppUser(req.headers.cookie);
+    if (!session || session.appRole == null) return err(res, "Authentication required", 401);
+    if (!hasAppRole(session.appRole, staffAccess)) return err(res, "Forbidden", 403);
+
     const phone = typeof req.query.phone === "string" ? req.query.phone : null;
     if (!phone) return err(res, "phone query param required", 400);
 
@@ -38,19 +72,18 @@ app.get("/api/patients", async (req, res) => {
 
 app.post("/api/patients", express.json(), async (req, res) => {
   try {
+    const session = await getSessionAppUser(req.headers.cookie);
+    if (!session || session.appRole == null) return err(res, "Authentication required", 401);
+    if (!hasAppRole(session.appRole, staffAccess)) return err(res, "Forbidden", 403);
+
     const parsed = createPatientSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return err(res, parsed.error.errors[0]?.message ?? "Validation error", 422);
-    }
+    if (!parsed.success) return err(res, parsed.error.errors[0]?.message ?? "Validation error", 422);
 
     const existing = await prisma.patient.findUnique({ where: { phone: parsed.data.phone } });
     if (existing) return err(res, "A patient with this phone number already exists", 409);
 
     const patient = await prisma.patient.create({
-      data: {
-        ...parsed.data,
-        gender: parsed.data.gender as Gender,
-      },
+      data: { ...parsed.data, gender: parsed.data.gender as Gender },
       select: { id: true, fullName: true },
     });
 
@@ -60,30 +93,65 @@ app.post("/api/patients", express.json(), async (req, res) => {
   }
 });
 
+// --- ECG ---
+
 app.get("/api/ecg", async (req, res) => {
   try {
-    const status = typeof req.query.status === "string" ? req.query.status : undefined;
-    const where = status ? { status: status as "PENDING" | "REVIEWED" | "URGENT" } : {};
+    const session = await getSessionAppUser(req.headers.cookie);
+    if (!session || session.appRole == null) return err(res, "Authentication required", 401);
+    if (!hasAppRole(session.appRole, ecgListAccess)) return err(res, "Forbidden", 403);
 
-    const records = await prisma.eCGRecord.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        status: true,
-        fileUrl: true,
-        healthWorkerNotes: true,
-        createdAt: true,
-        patient: {
-          select: { fullName: true, age: true, village: true, district: true },
-        },
-        finding: {
-          select: { severity: true },
-        },
-      },
-    });
+    const rawStatus = typeof req.query.status === "string" ? req.query.status : undefined;
+    if (rawStatus && !VALID_ECG_STATUSES.has(rawStatus)) {
+      return err(res, `Invalid status. Must be one of: ${[...VALID_ECG_STATUSES].join(", ")}`, 400);
+    }
 
-    return ok(res, records);
+    const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10));
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10)));
+    const where = rawStatus ? { status: rawStatus as ECGStatus } : {};
+
+    const [records, total] = await prisma.$transaction([
+      prisma.eCGRecord.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take: limit,
+        skip: (page - 1) * limit,
+        select: {
+          id: true,
+          status: true,
+          storagePath: true,
+          fileUrl: true,
+          healthWorkerNotes: true,
+          createdAt: true,
+          patient: { select: { fullName: true, age: true, village: true, district: true } },
+          finding: { select: { severity: true } },
+        },
+      }),
+      prisma.eCGRecord.count({ where }),
+    ]);
+
+    // Generate short-lived signed URLs for private ECG files
+    const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? "").replace(/\/$/, "");
+    const recordsWithUrls = await Promise.all(
+      records.map(async ({ storagePath, fileUrl, ...rest }) => {
+        if (storagePath) {
+          const { data } = await supabaseAdmin.storage
+            .from(ECG_BUCKET)
+            .createSignedUrl(storagePath, 3600);
+          return { ...rest, fileUrl: data?.signedUrl ?? fileUrl };
+        }
+        // Back-compat: extract path from legacy public URL
+        const publicPrefix = `${supabaseUrl}/storage/v1/object/public/${ECG_BUCKET}/`;
+        if (fileUrl.startsWith(publicPrefix)) {
+          const path = fileUrl.slice(publicPrefix.length);
+          const { data } = await supabaseAdmin.storage.from(ECG_BUCKET).createSignedUrl(path, 3600);
+          return { ...rest, fileUrl: data?.signedUrl ?? fileUrl };
+        }
+        return { ...rest, fileUrl };
+      })
+    );
+
+    return ok(res, { items: recordsWithUrls, total, page, limit });
   } catch (e) {
     return serverErr(res, e, "GET /api/ecg");
   }
@@ -91,12 +159,19 @@ app.get("/api/ecg", async (req, res) => {
 
 app.post("/api/ecg", upload.single("file"), async (req, res) => {
   try {
+    const session = await getSessionAppUser(req.headers.cookie);
+    if (!session || session.appRole == null) return err(res, "Authentication required", 401);
+    if (!hasAppRole(session.appRole, ecgUploadAccess)) return err(res, "Forbidden", 403);
+
     const file = req.file;
     const patientId = typeof req.body.patientId === "string" ? req.body.patientId : null;
     const healthWorkerNotes =
       typeof req.body.healthWorkerNotes === "string" ? req.body.healthWorkerNotes : null;
 
     if (!file) return err(res, "ECG file is required", 400);
+    if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
+      return err(res, "Only JPEG, PNG, GIF, WebP and PDF files are accepted", 415);
+    }
     if (!patientId) return err(res, "patientId is required", 400);
 
     const patient = await prisma.patient.findUnique({
@@ -105,13 +180,13 @@ app.post("/api/ecg", upload.single("file"), async (req, res) => {
     });
     if (!patient) return err(res, "Patient not found", 404);
 
-    const ext = file.originalname.split(".").pop() ?? "bin";
-    const path = `${patientId}/${Date.now()}.${ext}`;
+    const ext = file.originalname.split(".").pop()?.toLowerCase() ?? "bin";
+    const storagePath = `${patientId}/${Date.now()}.${ext}`;
 
     const { error: uploadError } = await supabaseAdmin.storage
       .from(ECG_BUCKET)
-      .upload(path, file.buffer, {
-        contentType: file.mimetype || "application/octet-stream",
+      .upload(storagePath, file.buffer, {
+        contentType: file.mimetype,
         upsert: false,
       });
 
@@ -120,22 +195,27 @@ app.post("/api/ecg", upload.single("file"), async (req, res) => {
       return err(res, "File upload failed", 500);
     }
 
-    const { data: publicData } = supabaseAdmin.storage.from(ECG_BUCKET).getPublicUrl(path);
-
     const ecgRecord = await prisma.eCGRecord.create({
       data: {
         patientId,
-        fileUrl: publicData.publicUrl,
+        uploadedById: session.userId ?? undefined,
+        storagePath,
+        fileUrl: storagePath, // placeholder; signed URLs generated on read
         healthWorkerNotes: healthWorkerNotes ?? null,
       },
       select: { id: true },
     });
 
-    sendToCardiologist({
-      patientName: patient.fullName,
-      age: patient.age,
-      village: patient.village,
-    }).catch((e) => console.error("[notify] cardiologist:", e));
+    try {
+      await sendToCardiologist({
+        patientName: patient.fullName,
+        age: patient.age,
+        village: patient.village,
+      });
+    } catch (e) {
+      console.error("[notify] cardiologist notification failed:", e);
+      // Non-fatal: upload succeeded; caller should follow up manually
+    }
 
     return ok(res, ecgRecord, 201);
   } catch (e) {
@@ -145,21 +225,19 @@ app.post("/api/ecg", upload.single("file"), async (req, res) => {
 
 app.patch("/api/ecg/:id/finding", express.json(), async (req, res) => {
   try {
-    const row = await getSessionAppUser(req.headers.cookie);
-    if (!row || !hasAppRole(row.appRole, [UserRole.CARDIOLOGIST])) {
-      return err(res, "Forbidden", 403);
-    }
+    const session = await getSessionAppUser(req.headers.cookie);
+    if (!session || session.appRole == null) return err(res, "Authentication required", 401);
+    if (!hasAppRole(session.appRole, [UserRole.CARDIOLOGIST])) return err(res, "Forbidden", 403);
 
     const ecgId = req.params.id;
     const parsed = submitFindingSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return err(res, parsed.error.errors[0]?.message ?? "Validation error", 422);
-    }
+    if (!parsed.success) return err(res, parsed.error.errors[0]?.message ?? "Validation error", 422);
 
     const ecgRecord = await prisma.eCGRecord.findUnique({
       where: { id: ecgId },
       include: {
         patient: { select: { fullName: true, phone: true } },
+        uploadedBy: { select: { phone: true } },
         finding: { select: { id: true } },
       },
     });
@@ -172,26 +250,27 @@ app.patch("/api/ecg/:id/finding", express.json(), async (req, res) => {
 
     const [finding] = await prisma.$transaction([
       prisma.finding.create({
-        data: {
-          ecgRecordId: ecgId,
-          severity: severity as Severity,
-          clinicalNotes,
-          recommendation,
-        },
+        data: { ecgRecordId: ecgId, severity: severity as Severity, clinicalNotes, recommendation },
         select: { id: true },
       }),
-      prisma.eCGRecord.update({
-        where: { id: ecgId },
-        data: { status: newStatus },
-      }),
+      prisma.eCGRecord.update({ where: { id: ecgId }, data: { status: newStatus } }),
     ]);
 
-    sendToHealthWorker({
-      healthWorkerPhone: ecgRecord.patient.phone,
-      patientName: ecgRecord.patient.fullName,
-      severity,
-      recommendation,
-    }).catch((e) => console.error("[notify] health-worker:", e));
+    const healthWorkerPhone = ecgRecord.uploadedBy?.phone;
+    if (healthWorkerPhone) {
+      try {
+        await sendToHealthWorker({
+          healthWorkerPhone,
+          patientName: ecgRecord.patient.fullName,
+          severity,
+          recommendation,
+        });
+      } catch (e) {
+        console.error("[notify] health-worker notification failed:", e);
+      }
+    } else {
+      console.warn(`[notify] ECG ${ecgId} has no uploadedBy phone — health worker not notified`);
+    }
 
     return ok(res, finding);
   } catch (e) {
@@ -199,42 +278,47 @@ app.patch("/api/ecg/:id/finding", express.json(), async (req, res) => {
   }
 });
 
+// --- Admin ---
+
 app.get("/api/admin/stats", async (req, res) => {
   try {
-    const row = await getSessionAppUser(req.headers.cookie);
-    if (!row || !hasAppRole(row.appRole, [UserRole.ADMIN])) {
-      return err(res, "Forbidden", 403);
-    }
+    const session = await getSessionAppUser(req.headers.cookie);
+    if (!session || session.appRole == null) return err(res, "Authentication required", 401);
+    if (!hasAppRole(session.appRole, [UserRole.ADMIN])) return err(res, "Forbidden", 403);
 
-    const [totalPatients, ecgRecords] = await prisma.$transaction([
+    const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10));
+    const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit ?? "100"), 10)));
+
+    const [
+      totalPatients,
+      normalCount,
+      watchCount,
+      urgentCount,
+      totalECGs,
+      records,
+    ] = await prisma.$transaction([
       prisma.patient.count(),
+      prisma.finding.count({ where: { severity: "NORMAL" } }),
+      prisma.finding.count({ where: { severity: "WATCH" } }),
+      prisma.finding.count({ where: { severity: "URGENT" } }),
+      prisma.eCGRecord.count(),
       prisma.eCGRecord.findMany({
         orderBy: { createdAt: "desc" },
+        take: limit,
+        skip: (page - 1) * limit,
         select: {
           id: true,
           status: true,
           createdAt: true,
-          patient: { select: { fullName: true, village: true } },
-          finding: {
-            select: { severity: true, createdAt: true },
-          },
+          patient: { select: { fullName: true, village: true, district: true, phone: true } },
+          finding: { select: { severity: true, createdAt: true } },
         },
       }),
     ]);
 
-    const bySeverity = { NORMAL: 0, WATCH: 0, URGENT: 0 };
-    for (const r of ecgRecords) {
-      if (r.finding?.severity === "NORMAL") bySeverity.NORMAL++;
-      else if (r.finding?.severity === "WATCH") bySeverity.WATCH++;
-      else if (r.finding?.severity === "URGENT") bySeverity.URGENT++;
-    }
+    const bySeverity = { NORMAL: normalCount, WATCH: watchCount, URGENT: urgentCount };
 
-    return ok(res, {
-      totalPatients,
-      totalECGs: ecgRecords.length,
-      bySeverity,
-      records: ecgRecords,
-    });
+    return ok(res, { totalPatients, totalECGs, bySeverity, records, page, limit });
   } catch (e) {
     return serverErr(res, e, "GET /api/admin/stats");
   }

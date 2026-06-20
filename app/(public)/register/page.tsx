@@ -10,6 +10,15 @@ import type { ApiResponse } from "@/lib/api-response";
 
 type PatientResult = { id: string; fullName: string };
 
+/** Converts 10-digit Indian mobile numbers to E.164. Passes through already-formatted numbers. */
+function normalizeIndianPhone(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 10 && /^[6-9]/.test(digits)) return `+91${digits}`;
+  if (digits.length === 12 && digits.startsWith("91") && /^[6-9]/.test(digits[2]!))
+    return `+${digits}`;
+  return raw.trim();
+}
+
 export default function RegisterPage() {
   const [created, setCreated] = useState<PatientResult | null>(null);
 
@@ -23,12 +32,28 @@ export default function RegisterPage() {
   });
 
   async function onSubmit(data: CreatePatientInput) {
+    const payload: CreatePatientInput = {
+      ...data,
+      phone: normalizeIndianPhone(data.phone),
+    };
+
     const res = await fetch("/api/patients", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
+      credentials: "include",
     });
-    const json: ApiResponse<PatientResult> = await res.json();
+    if (res.status === 401 || res.status === 403) {
+      toast.error("Please sign in as a health worker");
+      return;
+    }
+    let json: ApiResponse<PatientResult>;
+    try {
+      json = (await res.json()) as ApiResponse<PatientResult>;
+    } catch {
+      toast.error("Registration failed");
+      return;
+    }
     if (!json.success || !json.data) {
       toast.error(json.error ?? "Registration failed");
       return;
@@ -44,11 +69,10 @@ export default function RegisterPage() {
         <div className="card p-8 max-w-sm w-full text-center">
           <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-4" />
           <h2 className="text-lg font-bold text-slate-800 mb-1">Patient Registered</h2>
-          <p className="text-sm text-slate-500 mb-2">
+          <p className="text-sm text-slate-500 mb-6">
             <span className="font-semibold text-slate-700">{created.fullName}</span> has been
-            registered.
+            registered successfully.
           </p>
-          <p className="text-xs text-slate-400 mb-6 font-mono">ID: {created.id}</p>
           <div className="flex gap-3">
             <button className="btn-secondary flex-1" onClick={() => setCreated(null)}>
               Add Another
@@ -156,7 +180,7 @@ export default function RegisterPage() {
                   id="aadhaarLast4"
                   {...register("aadhaarLast4")}
                   className="input"
-                  placeholder="1234"
+                  placeholder="xxxx"
                   maxLength={4}
                   inputMode="numeric"
                 />
@@ -166,16 +190,18 @@ export default function RegisterPage() {
               </div>
               <div>
                 <label htmlFor="phone" className="label">
-                  Phone (E.164)
+                  Mobile Number
                 </label>
                 <input
                   id="phone"
                   {...register("phone")}
                   className="input"
-                  placeholder="+919876543210"
+                  placeholder="9876543210"
                   type="tel"
+                  inputMode="numeric"
                 />
                 {errors.phone && <p className="error-msg">{errors.phone.message}</p>}
+                <p className="text-xs text-slate-400 mt-1">10-digit number, auto-formatted</p>
               </div>
             </div>
 

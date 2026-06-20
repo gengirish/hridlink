@@ -1,5 +1,7 @@
 # HridLink MVP — Cursor Scaffold Prompt
 
+> **Implementation:** This codebase uses **Neon Auth** (sessions on Vercel) and a **Fly.io** data API reached via same-origin rewrites — not Clerk. For deployment wiring and environment variables see [DEPLOY.md](DEPLOY.md); for production verification steps see [docs/PRODUCTION-CHECKLIST.md](docs/PRODUCTION-CHECKLIST.md); for going live on your real Vercel URL (Neon Auth allowlist, `NEXT_PUBLIC_APP_URL`, first users) see [docs/DEPLOYED-URL-ONBOARDING.md](docs/DEPLOYED-URL-ONBOARDING.md).
+
 > **Product:** HridLink — Rural Cardiac Telemedicine Pilot  
 > **By:** IntelliForge Digital Services, Hyderabad  
 > **Version:** v1.0 · 18/06/2026
