@@ -7,6 +7,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { Upload, Search, CheckCircle2, FileText, X } from "lucide-react";
 import type { ApiResponse } from "@/lib/api-response";
+import { PageHeader } from "@/components/page-header";
 
 type Patient = { id: string; fullName: string; age: number; village: string; district: string };
 type ECGResult = { id: string };
@@ -113,28 +114,33 @@ export default function ECGUploadPage() {
 
   if (done) {
     return (
-      <main className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-        <div className="card p-8 max-w-sm w-full text-center">
-          <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-4" />
-          <h2 className="text-lg font-bold text-slate-800 mb-1">ECG Uploaded</h2>
-          <p className="text-sm text-slate-500 mb-6">
-            The cardiologist has been notified via WhatsApp and will review shortly.
-          </p>
-          <div className="flex gap-3">
-            <button
-              className="btn-secondary flex-1"
-              onClick={() => {
-                setDone(null);
-                setPatient(null);
-                setFile(null);
-                setPhoneQuery("");
-              }}
-            >
-              Upload Another
-            </button>
-            <a href="/" className="btn-primary flex-1">
-              Home
-            </a>
+      <main className="min-h-[calc(100vh-3.5rem)] px-4 py-12 sm:px-6">
+        <div className="mx-auto max-w-md text-center">
+          <div className="card border-emerald-200/80 p-8 shadow-lift">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200/80">
+              <CheckCircle2 className="h-8 w-8" aria-hidden />
+            </div>
+            <h2 className="mt-5 text-xl font-semibold tracking-tight text-ink-900">ECG submitted</h2>
+            <p className="mt-2 text-sm leading-relaxed text-ink-600">
+              The cardiologist is notified via WhatsApp and can review from their dashboard.
+            </p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                className="btn-secondary flex-1"
+                onClick={() => {
+                  setDone(null);
+                  setPatient(null);
+                  setFile(null);
+                  setPhoneQuery("");
+                }}
+              >
+                Upload another
+              </button>
+              <a href="/" className="btn-primary flex-1 text-center">
+                Home
+              </a>
+            </div>
           </div>
         </div>
       </main>
@@ -142,24 +148,23 @@ export default function ECGUploadPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-8">
-      <div className="max-w-lg mx-auto">
-        <div className="flex items-center gap-2 mb-6">
-          <div className="w-8 h-8 rounded-xl bg-brand-600 flex items-center justify-center">
-            <Upload className="w-4 h-4 text-white" />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-slate-800 leading-none">Upload ECG</h1>
-            <p className="text-xs text-slate-500">HridLink</p>
-          </div>
-        </div>
+    <main className="min-h-[calc(100vh-3.5rem)] px-4 py-10 sm:px-6">
+      <div className="mx-auto max-w-lg">
+        <PageHeader
+          icon={Upload}
+          title="Upload ECG"
+          description="Find the patient by mobile, attach the strip (photo or PDF), and add optional context for the specialist."
+        />
 
-        <div className="card p-5 space-y-5">
+        <div className="card space-y-8 p-6 shadow-soft sm:p-7">
           {/* Step 1: Search patient */}
           <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
-              Step 1 — Find Patient
-            </p>
+            <div className="mb-3 flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-600 text-[11px] font-bold text-white">
+                1
+              </span>
+              <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Find patient</p>
+            </div>
             <div className="flex gap-2">
               <input
                 type="tel"
@@ -182,14 +187,14 @@ export default function ECGUploadPage() {
             </div>
 
             {patient && (
-              <div className="mt-3 flex items-center justify-between p-3 rounded-xl bg-green-50 border border-green-200">
-                <div>
-                  <p className="text-sm font-semibold text-green-800">{patient.fullName}</p>
-                  <p className="text-xs text-green-600">
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-emerald-200/80 bg-emerald-50/90 p-3 ring-1 ring-emerald-100">
+                <div className="min-w-0 text-left">
+                  <p className="truncate text-sm font-semibold text-emerald-950">{patient.fullName}</p>
+                  <p className="text-xs text-emerald-800/90">
                     {patient.age}y · {patient.village}, {patient.district}
                   </p>
                 </div>
-                <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-700" aria-hidden />
               </div>
             )}
           </div>
@@ -202,9 +207,12 @@ export default function ECGUploadPage() {
             )}
 
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
-                Step 2 — Select ECG File
-              </p>
+              <div className="mb-3 flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-600 text-[11px] font-bold text-white">
+                  2
+                </span>
+                <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">ECG file & notes</p>
+              </div>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -213,32 +221,29 @@ export default function ECGUploadPage() {
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               />
               {file ? (
-                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-100 border border-slate-200">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-slate-500" />
-                    <span className="text-sm text-slate-700 truncate max-w-[200px]">
-                      {file.name}
-                    </span>
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-ink-200 bg-ink-50/80 p-3">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <FileText className="h-4 w-4 shrink-0 text-ink-500" aria-hidden />
+                    <span className="truncate text-sm text-ink-800">{file.name}</span>
                   </div>
                   <button
                     type="button"
                     onClick={() => setFile(null)}
-                    className="text-slate-400 hover:text-slate-600"
+                    className="rounded-lg p-1.5 text-ink-400 transition hover:bg-white hover:text-ink-700"
+                    aria-label="Remove file"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
               ) : (
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full rounded-xl border-2 border-dashed border-slate-300 p-6 text-center hover:border-brand-400 hover:bg-brand-50 transition-colors"
+                  className="w-full rounded-2xl border-2 border-dashed border-ink-200 bg-white/60 p-8 text-center transition hover:border-brand-300 hover:bg-brand-50/40"
                 >
-                  <Upload className="w-6 h-6 text-slate-400 mx-auto mb-2" />
-                  <p className="text-sm text-slate-500">
-                    Tap to upload ECG image or PDF
-                  </p>
-                  <p className="text-xs text-slate-400 mt-1">JPG, PNG, PDF accepted</p>
+                  <Upload className="mx-auto mb-2 h-7 w-7 text-ink-400" aria-hidden />
+                  <p className="text-sm font-medium text-ink-700">Tap to choose image or PDF</p>
+                  <p className="mt-1 text-xs text-ink-500">JPG, PNG, or PDF</p>
                 </button>
               )}
             </div>
@@ -259,7 +264,7 @@ export default function ECGUploadPage() {
             <button
               type="submit"
               disabled={uploading || !patient || !file}
-              className="btn-primary w-full"
+              className="btn-primary w-full py-3"
             >
               {uploading ? "Uploading…" : "Submit ECG"}
             </button>

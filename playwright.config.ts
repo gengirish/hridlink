@@ -10,10 +10,12 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 2 : undefined,
   reporter: process.env.CI ? [["github"], ["list"]] : [["list"]],
-  timeout: 60_000,
+  timeout: 90_000,
   expect: { timeout: 10_000 },
   use: {
     baseURL,
+    /** First hit to App Router pages can compile slowly under parallel workers. */
+    navigationTimeout: 90_000,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: process.env.CI ? "retain-on-failure" : "off",

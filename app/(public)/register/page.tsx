@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { Heart, CheckCircle2 } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 import { createPatientSchema, type CreatePatientInput } from "@/lib/validators";
 import type { ApiResponse } from "@/lib/api-response";
 
@@ -65,21 +66,25 @@ export default function RegisterPage() {
 
   if (created) {
     return (
-      <main className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-        <div className="card p-8 max-w-sm w-full text-center">
-          <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-4" />
-          <h2 className="text-lg font-bold text-slate-800 mb-1">Patient Registered</h2>
-          <p className="text-sm text-slate-500 mb-6">
-            <span className="font-semibold text-slate-700">{created.fullName}</span> has been
-            registered successfully.
-          </p>
-          <div className="flex gap-3">
-            <button className="btn-secondary flex-1" onClick={() => setCreated(null)}>
-              Add Another
-            </button>
-            <a href="/ecg-upload" className="btn-primary flex-1">
-              Upload ECG
-            </a>
+      <main className="min-h-[calc(100vh-3.5rem)] px-4 py-12 sm:px-6">
+        <div className="mx-auto max-w-md text-center">
+          <div className="card border-emerald-200/80 p-8 shadow-lift">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200/80">
+              <CheckCircle2 className="h-8 w-8" aria-hidden />
+            </div>
+            <h2 className="mt-5 text-xl font-semibold tracking-tight text-ink-900">Patient registered</h2>
+            <p className="mt-2 text-sm leading-relaxed text-ink-600">
+              <span className="font-semibold text-ink-900">{created.fullName}</span> is in the system.
+              You can capture an ECG next.
+            </p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <button type="button" className="btn-secondary flex-1" onClick={() => setCreated(null)}>
+                Register another
+              </button>
+              <a href="/ecg-upload" className="btn-primary flex-1 text-center">
+                Upload ECG
+              </a>
+            </div>
           </div>
         </div>
       </main>
@@ -87,19 +92,15 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-8">
-      <div className="max-w-lg mx-auto">
-        <div className="flex items-center gap-2 mb-6">
-          <div className="w-8 h-8 rounded-xl bg-brand-600 flex items-center justify-center">
-            <Heart className="w-4 h-4 text-white" />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-slate-800 leading-none">Patient Registration</h1>
-            <p className="text-xs text-slate-500">HridLink</p>
-          </div>
-        </div>
+    <main className="min-h-[calc(100vh-3.5rem)] px-4 py-10 sm:px-6">
+      <div className="mx-auto max-w-lg">
+        <PageHeader
+          icon={Heart}
+          title="Patient registration"
+          description="Capture demographics once—phone is used later to find the patient during ECG upload."
+        />
 
-        <div className="card p-5">
+        <div className="card p-6 shadow-soft sm:p-7">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
               <label htmlFor="fullName" className="label">
@@ -201,11 +202,11 @@ export default function RegisterPage() {
                   inputMode="numeric"
                 />
                 {errors.phone && <p className="error-msg">{errors.phone.message}</p>}
-                <p className="text-xs text-slate-400 mt-1">10-digit number, auto-formatted</p>
+                <p className="mt-1 text-xs text-ink-500">10-digit Indian mobile; we format to +91 automatically.</p>
               </div>
             </div>
 
-            <button type="submit" disabled={isSubmitting} className="btn-primary w-full mt-2">
+            <button type="submit" disabled={isSubmitting} className="btn-primary mt-2 w-full py-3">
               {isSubmitting ? "Registering…" : "Register Patient"}
             </button>
           </form>

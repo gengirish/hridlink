@@ -1,20 +1,27 @@
 import Link from "next/link";
-import { Heart } from "lucide-react";
+import { Heart, Home } from "lucide-react";
 
 export default function NotFound() {
   return (
-    <main className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-      <div className="text-center max-w-sm">
-        <div className="w-12 h-12 rounded-2xl bg-brand-100 flex items-center justify-center mx-auto mb-4">
-          <Heart className="w-6 h-6 text-brand-600" />
+    <main className="flex min-h-[calc(100vh-3.5rem)] flex-col items-center justify-center px-4 py-16">
+      <div className="max-w-md text-center">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-100 text-brand-700 ring-1 ring-brand-200/80">
+          <Heart className="h-7 w-7" aria-hidden />
         </div>
-        <h1 className="text-2xl font-bold text-slate-800 mb-2">Page not found</h1>
-        <p className="text-sm text-slate-500 mb-6">
-          This page doesn&apos;t exist in HridLink.
+        <p className="mt-6 text-xs font-semibold uppercase tracking-wider text-ink-500">404</p>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink-900">This page does not exist</h1>
+        <p className="mt-3 text-sm leading-relaxed text-ink-600">
+          The link may be outdated, or the page was moved. Head back to the workspace home.
         </p>
-        <Link href="/" className="btn-primary inline-flex">
-          Back to Home
-        </Link>
+        <div className="mt-8 flex flex-wrap justify-center gap-3">
+          <Link href="/" className="btn-primary inline-flex gap-2">
+            <Home className="h-4 w-4" aria-hidden />
+            Back to home
+          </Link>
+          <Link href="/demo" className="btn-secondary">
+            Demo guide
+          </Link>
+        </div>
       </div>
     </main>
   );

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { BarChart3, Download, Clock } from "lucide-react";
 import type { ApiResponse } from "@/lib/api-response";
+import { PageHeader } from "@/components/page-header";
 
 type Patient = { fullName: string; village: string; district: string; phone: string };
 
@@ -81,88 +82,80 @@ export default function AdminPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <p className="text-slate-400 text-sm">Loading…</p>
+      <main className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center px-4">
+        <p className="text-sm text-ink-500">Loading pilot stats…</p>
       </main>
     );
   }
 
   if (!stats) {
     return (
-      <main className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <p className="text-red-500 text-sm">Failed to load stats.</p>
+      <main className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center px-4">
+        <p className="text-sm text-red-600">Failed to load stats.</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-purple-600 flex items-center justify-center">
-              <BarChart3 className="w-4 h-4 text-white" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-slate-800 leading-none">Admin Dashboard</h1>
-              <p className="text-xs text-slate-500">HridLink Pilot Stats</p>
-            </div>
-          </div>
-          <button
-            onClick={() => exportCSV(stats)}
-            className="btn-secondary text-xs gap-1.5"
-          >
-            <Download className="w-3.5 h-3.5" />
+    <main className="min-h-[calc(100vh-3.5rem)] px-4 py-10 sm:px-6">
+      <div className="mx-auto max-w-5xl">
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+          <PageHeader
+            icon={BarChart3}
+            iconClassName="bg-ink-900 shadow-inner"
+            title="Pilot operations"
+            description="Patients, ECG volume, triage mix, and response-time signal—export for offline reporting."
+          />
+          <button type="button" onClick={() => exportCSV(stats)} className="btn-secondary shrink-0 gap-2 self-start text-xs">
+            <Download className="h-3.5 w-3.5" aria-hidden />
             Export CSV
           </button>
         </div>
 
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
-          <div className="card p-4 text-center col-span-1">
-            <p className="text-2xl font-bold text-slate-800">{stats.totalPatients}</p>
-            <p className="text-xs text-slate-500 mt-1">Patients</p>
+        <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <div className="card col-span-1 p-5 text-center">
+            <p className="text-3xl font-semibold tabular-nums text-ink-900">{stats.totalPatients}</p>
+            <p className="mt-1 text-xs font-medium uppercase tracking-wide text-ink-500">Patients</p>
           </div>
-          <div className="card p-4 text-center col-span-1">
-            <p className="text-2xl font-bold text-slate-800">{stats.totalECGs}</p>
-            <p className="text-xs text-slate-500 mt-1">Total ECGs</p>
+          <div className="card col-span-1 p-5 text-center">
+            <p className="text-3xl font-semibold tabular-nums text-ink-900">{stats.totalECGs}</p>
+            <p className="mt-1 text-xs font-medium uppercase tracking-wide text-ink-500">ECGs</p>
           </div>
-          <div className="card p-4 text-center col-span-1">
-            <p className="text-2xl font-bold text-green-600">{stats.bySeverity.NORMAL}</p>
-            <p className="text-xs text-slate-500 mt-1">Normal</p>
+          <div className="card col-span-1 border-emerald-200/80 bg-emerald-50/40 p-5 text-center">
+            <p className="text-3xl font-semibold tabular-nums text-emerald-700">{stats.bySeverity.NORMAL}</p>
+            <p className="mt-1 text-xs font-medium uppercase tracking-wide text-emerald-800/80">Normal</p>
           </div>
-          <div className="card p-4 text-center col-span-1">
-            <p className="text-2xl font-bold text-yellow-500">{stats.bySeverity.WATCH}</p>
-            <p className="text-xs text-slate-500 mt-1">Watch</p>
+          <div className="card col-span-1 border-amber-200/80 bg-amber-50/40 p-5 text-center">
+            <p className="text-3xl font-semibold tabular-nums text-amber-700">{stats.bySeverity.WATCH}</p>
+            <p className="mt-1 text-xs font-medium uppercase tracking-wide text-amber-900/80">Watch</p>
           </div>
-          <div className="card p-4 text-center col-span-2 sm:col-span-1">
-            <p className="text-2xl font-bold text-red-600">{stats.bySeverity.URGENT}</p>
-            <p className="text-xs text-slate-500 mt-1">Urgent</p>
+          <div className="card col-span-2 border-red-200/80 bg-red-50/40 p-5 text-center sm:col-span-1">
+            <p className="text-3xl font-semibold tabular-nums text-red-700">{stats.bySeverity.URGENT}</p>
+            <p className="mt-1 text-xs font-medium uppercase tracking-wide text-red-900/80">Urgent</p>
           </div>
         </div>
 
-        {/* Records table */}
-        <div className="card overflow-hidden">
+        <div className="card overflow-hidden shadow-soft">
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-100">
+              <thead className="border-b border-ink-100 bg-ink-50/80">
                 <tr>
                   {["Patient", "Village", "District", "Status", "Severity", "Response"].map((h) => (
                     <th
                       key={h}
-                      className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide"
+                      className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-ink-500"
                     >
                       {h}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody className="divide-y divide-ink-100">
                 {stats.records.map((r) => (
-                  <tr key={r.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-medium text-slate-800">{r.patient.fullName}</td>
-                    <td className="px-4 py-3 text-slate-500">{r.patient.village}</td>
-                    <td className="px-4 py-3 text-slate-500">{r.patient.district}</td>
+                  <tr key={r.id} className="transition hover:bg-ink-50/80">
+                    <td className="px-4 py-3 font-medium text-ink-900">{r.patient.fullName}</td>
+                    <td className="px-4 py-3 text-ink-600">{r.patient.village}</td>
+                    <td className="px-4 py-3 text-ink-600">{r.patient.district}</td>
                     <td className="px-4 py-3">
                       {r.status === "PENDING" ? (
                         <span className="badge-pending">Pending</span>
@@ -172,12 +165,10 @@ export default function AdminPage() {
                         <span className="badge-reviewed">Reviewed</span>
                       )}
                     </td>
+                    <td className="px-4 py-3">{r.finding ? <SeverityBadge s={r.finding.severity} /> : "—"}</td>
                     <td className="px-4 py-3">
-                      {r.finding ? <SeverityBadge s={r.finding.severity} /> : "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="flex items-center gap-1 text-slate-500">
-                        <Clock className="w-3.5 h-3.5" />
+                      <span className="flex items-center gap-1 text-ink-500">
+                        <Clock className="h-3.5 w-3.5" aria-hidden />
                         {responseMinutes(r.createdAt, r.finding?.createdAt ?? null)}
                       </span>
                     </td>
@@ -186,7 +177,7 @@ export default function AdminPage() {
               </tbody>
             </table>
             {stats.records.length === 0 && (
-              <p className="text-center text-slate-400 text-sm py-8">No ECG records yet.</p>
+              <p className="py-10 text-center text-sm text-ink-500">No ECG records yet.</p>
             )}
           </div>
         </div>
