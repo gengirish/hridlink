@@ -10,6 +10,11 @@ export async function signUpWithEmail(
   _prevState: { error: string } | null,
   formData: FormData
 ) {
+  const { data: existing } = await auth.getSession();
+  if (existing?.user) {
+    redirect("/");
+  }
+
   const email = getFormString(formData, "email");
   const name = getFormString(formData, "name");
   const password = getFormString(formData, "password");

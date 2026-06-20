@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import {
   Heart,
   UserPlus,
@@ -9,8 +10,10 @@ import {
   Stethoscope,
   LayoutDashboard,
   LogIn,
+  LogOut,
   BookOpen,
 } from "lucide-react";
+import { authClient } from "@/lib/auth/client";
 import { cn } from "@/lib/utils";
 
 const links = [
@@ -22,8 +25,22 @@ const links = [
 
 export function AppNav() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { data: session, isPending } = authClient.useSession();
+  const [signingOut, setSigningOut] = useState(false);
   const isAuthPage = pathname.startsWith("/sign-");
   if (isAuthPage) return null;
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    try {
+      await authClient.signOut();
+      router.refresh();
+      router.push("/");
+    } finally {
+      setSigningOut(false);
+    }
+  }
 
   return (
     <nav
@@ -84,13 +101,37 @@ export function AppNav() {
             <BookOpen className="h-3.5 w-3.5" aria-hidden />
             Demo
           </Link>
-          <Link
-            href="/sign-in"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-ink-200 bg-white px-2.5 py-2 text-xs font-semibold text-ink-800 shadow-sm transition hover:border-ink-300 hover:bg-ink-50"
-          >
-            <LogIn className="h-3.5 w-3.5" aria-hidden />
-            <span className="hidden sm:inline">Sign in</span>
-          </Link>
+          {isPending ? (
+            <span className="inline-flex min-w-[5.5rem] items-center justify-center rounded-xl border border-transparent px-2.5 py-2 text-xs font-semibold text-ink-400">
+              …
+            </span>
+          ) : session?.user ? (
+            <div className="flex items-center gap-1.5">
+              <span
+                className="hidden max-w-[10rem] truncate text-xs font-medium text-ink-600 sm:inline"
+                title={session.user.email}
+              >
+                {session.user.name?.trim() || session.user.email}
+              </span>
+              <button
+                type="button"
+                onClick={() => void handleSignOut()}
+                disabled={signingOut}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-ink-200 bg-white px-2.5 py-2 text-xs font-semibold text-ink-800 shadow-sm transition hover:border-ink-300 hover:bg-ink-50 disabled:opacity-60"
+              >
+                <LogOut className="h-3.5 w-3.5" aria-hidden />
+                <span className="hidden sm:inline">{signingOut ? "Signing out…" : "Sign out"}</span>
+              </button>
+            </div>
+          ) : (
+            <Link
+              href="/sign-in"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-ink-200 bg-white px-2.5 py-2 text-xs font-semibold text-ink-800 shadow-sm transition hover:border-ink-300 hover:bg-ink-50"
+            >
+              <LogIn className="h-3.5 w-3.5" aria-hidden />
+              <span className="hidden sm:inline">Sign in</span>
+            </Link>
+          )}
         </div>
       </div>
     </nav>

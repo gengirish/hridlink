@@ -10,9 +10,18 @@ export async function signInWithEmail(
   _prevState: { error: string } | null,
   formData: FormData
 ) {
+  const returnTo = getFormString(formData, "returnTo");
+  const { data: existing } = await auth.getSession();
+  if (existing?.user) {
+    const target = returnTo.trim();
+    if (target.startsWith("/") && !target.startsWith("//")) {
+      redirect(target);
+    }
+    redirect("/");
+  }
+
   const email = getFormString(formData, "email");
   const password = getFormString(formData, "password");
-  const returnTo = getFormString(formData, "returnTo");
 
   const { error } = await auth.signIn.email({ email, password });
 
