@@ -2,15 +2,16 @@
 
 import { auth } from "@/lib/auth/server";
 import { syncAppUserFromSession } from "@/lib/auth/sync-app-user";
+import { getFormString } from "@/lib/get-form-string";
 import { redirect } from "next/navigation";
 
 export async function signUpWithEmail(
   _prevState: { error: string } | null,
   formData: FormData
 ) {
-  const email = formData.get("email") as string;
-  const name = formData.get("name") as string;
-  const password = formData.get("password") as string;
+  const email = getFormString(formData, "email");
+  const name = getFormString(formData, "name");
+  const password = getFormString(formData, "password");
 
   if (!email?.trim()) {
     return { error: "Email is required." };
