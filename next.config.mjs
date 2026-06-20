@@ -21,10 +21,15 @@ const nextConfig = {
     const upstream = process.env.API_UPSTREAM_URL?.replace(/\/$/, "");
 
     if (!upstream) {
-      // VERCEL=1 is set in all Vercel build/runtime environments
+      // VERCEL=1 on all Vercel builds; VERCEL_ENV is production | preview | development
       if (process.env.VERCEL === "1") {
+        const vercelEnv = process.env.VERCEL_ENV;
+        if (vercelEnv === "preview" || vercelEnv === "development") {
+          // Preview/development: allow build without Fly URL (add API_UPSTREAM_URL in Vercel to test /api proxy)
+          return [];
+        }
         throw new Error(
-          "[hridlink] API_UPSTREAM_URL is required on Vercel. Add it in Project Settings → Environment Variables."
+          "[hridlink] API_UPSTREAM_URL is required on Vercel Production. Add it in Project Settings → Environment Variables (Production)."
         );
       }
       // Local builds without the var: skip rewrites (API routes will 404 — run dev:stack instead)
