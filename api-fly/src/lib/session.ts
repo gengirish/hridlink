@@ -15,9 +15,16 @@ type CachedUser = {
 const sessionCache = new Map<string, CachedUser>();
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
+/** Match Next `lib/auth/server.ts` — pasted Fly secrets may include BOM / CRLF. */
+function normalizeAuthBaseUrl(raw: string | undefined): string | undefined {
+  if (raw == null) return undefined;
+  const cleaned = raw.replace(/^\uFEFF/, "").replace(/\u200b/g, "").trim().replace(/\/$/, "");
+  return cleaned.length > 0 ? cleaned : undefined;
+}
+
 export async function getNeonUserFromCookies(cookieHeader: string | undefined): Promise<NeonUser | null> {
   if (!cookieHeader?.trim()) return null;
-  const base = process.env.NEON_AUTH_BASE_URL?.replace(/\/$/, "");
+  const base = normalizeAuthBaseUrl(process.env.NEON_AUTH_BASE_URL);
   if (!base) {
     console.warn("[api-fly] NEON_AUTH_BASE_URL not set — cannot resolve session");
     return null;
