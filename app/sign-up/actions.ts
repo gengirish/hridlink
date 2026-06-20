@@ -1,5 +1,6 @@
 "use server";
 
+import { formatAuthActionError } from "@/lib/auth/format-auth-action-error";
 import { auth } from "@/lib/auth/server";
 import { syncAppUserFromSession } from "@/lib/auth/sync-app-user";
 import { getFormString } from "@/lib/get-form-string";
@@ -24,7 +25,9 @@ export async function signUpWithEmail(
   });
 
   if (error) {
-    return { error: error.message || "Failed to create account." };
+    return {
+      error: formatAuthActionError(error.message, "Failed to create account."),
+    };
   }
 
   await syncAppUserFromSession();

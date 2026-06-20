@@ -1,5 +1,6 @@
 "use server";
 
+import { formatAuthActionError } from "@/lib/auth/format-auth-action-error";
 import { auth } from "@/lib/auth/server";
 import { syncAppUserFromSession } from "@/lib/auth/sync-app-user";
 import { getFormString } from "@/lib/get-form-string";
@@ -16,7 +17,9 @@ export async function signInWithEmail(
   const { error } = await auth.signIn.email({ email, password });
 
   if (error) {
-    return { error: error.message || "Failed to sign in. Try again." };
+    return {
+      error: formatAuthActionError(error.message, "Failed to sign in. Try again."),
+    };
   }
 
   await syncAppUserFromSession();

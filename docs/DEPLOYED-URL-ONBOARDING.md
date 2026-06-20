@@ -13,6 +13,8 @@ Pick two values and use them consistently everywhere below:
 
 In the [Neon Console](https://console.neon.tech) → your project → **Auth** (or Auth configuration for your branch), register **`VERCEL_APP_URL`** as an allowed application / trusted origin / redirect base (exact labels depend on the Neon Auth UI). Sessions and cookies are scoped to that origin; if the production URL is missing here, sign-in can fail or redirect incorrectly.
 
+**Symptom: “Invalid origin”** (sign-in / sign-up banner or API response): Neon Auth is rejecting the `Origin` your app sends (usually `https://your-host` from the browser or from `curl -H 'Origin: …'`). Fix it by allowlisting **exactly** that origin in Neon Auth—same string as **`NEXT_PUBLIC_APP_URL`** (no trailing slash, no UTF‑8 BOM or extra newlines in env values). If you use both a `*.vercel.app` preview URL and a production alias, add **each** origin you actually open in the browser.
+
 Also confirm **`NEON_AUTH_BASE_URL`** and **`NEON_AUTH_COOKIE_SECRET`** in Neon’s docs match what you set on Vercel and Fly (same values on both).
 
 ## 2. Vercel — environment variables
