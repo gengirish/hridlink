@@ -31,8 +31,21 @@ fly secrets set --config fly.api.toml \
   MSG91_TEMPLATE_ID_CARDIOLOGIST="..." \
   MSG91_TEMPLATE_ID_HEALTH_WORKER="..." \
   NEXT_PUBLIC_APP_URL="https://your-app.vercel.app" \
-  INTERNAL_API_SECRET="<same 32-char hex as Vercel INTERNAL_API_SECRET>"
+  INTERNAL_API_SECRET="<same 32-char hex as Vercel INTERNAL_API_SECRET>" \
+  AGENTMAIL_API_KEY="..." \
+  NOTIFY_CARDIOLOGIST_EMAIL="optional@example.com"
 ```
+
+Optional AgentMail tuning (defaults shown; omit if fine):
+
+```bash
+fly secrets set --config fly.api.toml \
+  AGENTMAIL_DOMAIN="agentmail.to" \
+  AGENTMAIL_INBOX_USERNAME="noreply" \
+  AGENTMAIL_INBOX_ID=""
+```
+
+See [docs/AGENTMAIL.md](docs/AGENTMAIL.md) for behaviour (cardiologist alert email, health-worker finding email when the uploader has an email on file).
 
 Deploy:
 
@@ -63,7 +76,7 @@ Import the GitHub repo (or link CLI). Set environment variables:
 | `DATABASE_URL`, `DIRECT_URL` | Neon DB URLs (layouts use Prisma for role checks) |
 | `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET` | Neon Auth (must match Fly for session cookie forwarding) |
 | `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY` | Storage |
-| `MSG91_*`, `NEXT_PUBLIC_APP_URL` | WhatsApp notifications + deep-link URLs |
+| `MSG91_*`, `NEXT_PUBLIC_APP_URL` | WhatsApp notifications + deep-link URLs (email uses AgentMail on **Fly** only — see [docs/AGENTMAIL.md](docs/AGENTMAIL.md)) |
 
 `next.config.mjs` always rewrites these paths to `API_UPSTREAM_URL` in production; in local dev, set the variable or rewrites are skipped and those URLs **404** (by design — no silent fallback to a local Prisma API in Next).
 
@@ -94,7 +107,7 @@ API_UPSTREAM_URL=http://127.0.0.1:8080
 npm run dev
 ```
 
-Use **`npm run dev:stack`** from the repo root (starts Next + `api-fly`). Set `API_UPSTREAM_URL=http://127.0.0.1:8080` in `.env.local` or export it in the shell so rewrites hit local Fly API.
+Use **`npm run dev:stack`** from the repo root (starts Next + `api-fly`). Set `API_UPSTREAM_URL=http://127.0.0.1:8080` in `.env.local` or export it in the shell so rewrites hit local Fly API. For local **AgentMail** tests, set `AGENTMAIL_*` (and optionally `NOTIFY_CARDIOLOGIST_EMAIL`) in the shell or an `api-fly` env file — see [docs/AGENTMAIL.md](docs/AGENTMAIL.md).
 
 ## 4. Optional hardening
 

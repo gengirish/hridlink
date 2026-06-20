@@ -1,3 +1,4 @@
+import "./load-env.js";
 import express from "express";
 import multer from "multer";
 import { Gender, UserRole, Severity, ECGStatus } from "@prisma/client";
@@ -237,7 +238,7 @@ app.patch("/api/ecg/:id/finding", express.json(), async (req, res) => {
       where: { id: ecgId },
       include: {
         patient: { select: { fullName: true, phone: true } },
-        uploadedBy: { select: { phone: true } },
+        uploadedBy: { select: { phone: true, email: true } },
         finding: { select: { id: true } },
       },
     });
@@ -261,6 +262,7 @@ app.patch("/api/ecg/:id/finding", express.json(), async (req, res) => {
       try {
         await sendToHealthWorker({
           healthWorkerPhone,
+          healthWorkerEmail: ecgRecord.uploadedBy?.email,
           patientName: ecgRecord.patient.fullName,
           severity,
           recommendation,

@@ -1,12 +1,25 @@
+import { sendAgentmailHtml } from "./agentmail-send.js";
+
 const MSG91_AUTH_KEY = process.env.MSG91_AUTH_KEY ?? "";
 const MSG91_TEMPLATE_ID_CARDIOLOGIST = process.env.MSG91_TEMPLATE_ID_CARDIOLOGIST ?? "";
 const MSG91_TEMPLATE_ID_HEALTH_WORKER = process.env.MSG91_TEMPLATE_ID_HEALTH_WORKER ?? "";
 const CARDIOLOGIST_PHONE = process.env.MSG91_CARDIOLOGIST_PHONE ?? "";
+/** Optional: receive the same ECG alert via email (AgentMail). */
+const NOTIFY_CARDIOLOGIST_EMAIL = (process.env.NOTIFY_CARDIOLOGIST_EMAIL ?? "").trim();
 const APP_URL = (
   process.env.NEXT_PUBLIC_APP_URL ??
   process.env.APP_PUBLIC_URL ??
   "http://localhost:3000"
 ).replace(/\/$/, "");
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 interface MSG91WhatsAppPayload {
   integrated_number: string;
@@ -88,10 +101,23 @@ export async function sendToCardiologist(opts: {
     opts.village,
     dashboardLink,
   ]);
+  if (NOTIFY_CARDIOLOGIST_EMAIL) {
+    const subject = `[HridLink] New ECG — ${opts.patientName}`;
+    const html = `<p>A new ECG was uploaded for review.</p>
+<ul>
+<li><strong>Patient:</strong> ${escapeHtml(opts.patientName)}</li>
+<li><strong>Age:</strong> ${escapeHtml(String(opts.age))}</li>
+<li><strong>Village:</strong> ${escapeHtml(opts.village)}</li>
+</ul>
+<p><a href="${escapeHtml(dashboardLink)}">Open cardiologist dashboard</a></p>`;
+    await sendAgentmailHtml(NOTIFY_CARDIOLOGIST_EMAIL, subject, html);
+  }
 }
 
 export async function sendToHealthWorker(opts: {
   healthWorkerPhone: string;
+  /** When set and AgentMail is configured, a copy is emailed in addition to WhatsApp. */
+  healthWorkerEmail?: string | null;
   patientName: string;
   severity: string;
   recommendation: string;
@@ -101,4 +127,14 @@ export async function sendToHealthWorker(opts: {
     opts.severity,
     opts.recommendation,
   ]);
+  const email = opts.healthWorkerEmail?.trim();
+  if (email) {
+    const subject = `[HridLink] ECG finding — ${opts.patientName} (${opts.severity})`;
+    const html = `<p>An ECG finding was submitted for <strong>${escapeHtml(opts.patientName)}</strong>.</p>
+<ul>
+<li><strong>Severity:</strong> ${escapeHtml(opts.severity)}</li>
+<li><strong>Recommendation:</strong> ${escapeHtml(opts.recommendation)}</li>
+</ul>`;
+    await sendAgentmailHtml(email, subject, html);
+  }
 }
