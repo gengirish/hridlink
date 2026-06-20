@@ -4,7 +4,7 @@
 export function formatAuthActionError(message: string | undefined, fallback: string): string {
   const m = (message ?? "").trim() || fallback;
   if (/invalid\s+origin/i.test(m)) {
-    return `${m} — Add this exact site URL (scheme + host, no trailing slash) under Neon Console → your project → Auth → trusted / allowed application URLs. It must match the address bar and NEXT_PUBLIC_APP_URL.`;
+    return `${m} — In Neon Console open your database branch → Auth → Configuration → Domains → Add domain. Use the exact app origin (e.g. https://hridlink.vercel.app): include https, no trailing slash, same host as the address bar and NEXT_PUBLIC_APP_URL. Docs: https://neon.com/docs/auth/guides/configure-domains`;
   }
   return m;
 }

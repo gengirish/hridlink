@@ -9,11 +9,17 @@ Pick two values and use them consistently everywhere below:
 | `VERCEL_APP_URL` | `https://hridlink.vercel.app` | Public Next.js site (**no** trailing slash) |
 | `FLY_API_URL` | `https://hridlink-api.fly.dev` | Fly API origin (**no** trailing slash) |
 
-## 1. Neon Auth — allow your site origin
+## 1. Neon Auth — allow your site origin (trusted domains)
 
-In the [Neon Console](https://console.neon.tech) → your project → **Auth** (or Auth configuration for your branch), register **`VERCEL_APP_URL`** as an allowed application / trusted origin / redirect base (exact labels depend on the Neon Auth UI). Sessions and cookies are scoped to that origin; if the production URL is missing here, sign-in can fail or redirect incorrectly.
+Neon Auth only accepts requests whose **`Origin`** matches a **trusted domain** you configure for that **database branch**.
 
-**Symptom: “Invalid origin”** (sign-in / sign-up banner or API response): Neon Auth is rejecting the `Origin` your app sends (usually `https://your-host` from the browser or from `curl -H 'Origin: …'`). Fix it by allowlisting **exactly** that origin in Neon Auth—same string as **`NEXT_PUBLIC_APP_URL`** (no trailing slash, no UTF‑8 BOM or extra newlines in env values). If you use both a `*.vercel.app` preview URL and a production alias, add **each** origin you actually open in the browser.
+1. Open [Neon Console](https://console.neon.tech) → your project → select the **branch** your app uses (often `main` / production).
+2. Go to **Auth** → **Configuration** → **Domains** (see [Configure trusted domains](https://neon.com/docs/auth/guides/configure-domains)).
+3. Click **Add domain** and enter **`VERCEL_APP_URL`** exactly, e.g. `https://hridlink.vercel.app` — include `https://`, **no** trailing slash.
+
+CLI alternative (same branch): `neonctl neon-auth domain add` — see [Neon CLI — neon auth](https://neon.com/docs/cli/neon-auth).
+
+**Symptom: “Invalid origin”** (sign-in / sign-up): the `Origin` header (browser or `curl -H 'Origin: …'`) is not in that branch’s domain list. Add that exact origin, matching **`NEXT_PUBLIC_APP_URL`** on Vercel (no BOM or stray newlines in env values). For **Vercel preview** hosts, add each preview origin you use, or use a wildcard pattern if your Neon plan supports it (see Neon’s branching / preview docs).
 
 Also confirm **`NEON_AUTH_BASE_URL`** and **`NEON_AUTH_COOKIE_SECRET`** in Neon’s docs match what you set on Vercel and Fly (same values on both).
 
