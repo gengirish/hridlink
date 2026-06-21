@@ -2,6 +2,8 @@
 
 **First time wiring your live Vercel URL?** Follow [docs/DEPLOYED-URL-ONBOARDING.md](docs/DEPLOYED-URL-ONBOARDING.md) (Neon Auth origin, `NEXT_PUBLIC_APP_URL`, redeploys, first user, role promotion).
 
+**Terminal workflow (Neon CLI + Vercel CLI):** [docs/VERCEL-NEON-CLI.md](docs/VERCEL-NEON-CLI.md).
+
 The Next.js app keeps **Neon Auth** on Vercel (`/api/auth/*`, middleware, sign-in pages). **All data HTTP handlers live only on Fly.io** — there are no duplicate `app/api/patients` or `app/api/ecg` routes in Next. Traffic is proxied with **rewrites** so the browser still calls same-origin `/api/...` (cookies forwarded to Fly).
 
 ## 1. Fly.io — API
