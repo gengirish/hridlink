@@ -17,4 +17,10 @@ npm run test:e2e
 
 Most specs use **route mocks** for `/api/patients` and `/api/ecg` so they stay deterministic without a seeded DB.
 
+Coverage highlights:
+
+- **Auth UI:** sign-in / sign-up forms, HTML5 validation (`sign-in-up-validation.spec.ts`).
+- **Public flows:** home, nav, register (validation + mocked API success/errors), ECG upload (happy path, resets, API error toasts, file remove, notes).
+- **Routing:** protected redirects, 404, demo, **PWA manifest** (`manifest.spec.ts`).
+
 **Selector gotcha:** `getByLabel("Age")` can also match **Village** (`"Vill**age**"`). Prefer `getByRole("spinbutton", { name: "Age" })` or `getByLabel("Age", { exact: true })`.

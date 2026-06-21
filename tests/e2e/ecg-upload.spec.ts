@@ -135,4 +135,167 @@ test.describe("ECG upload", () => {
     await expect(page.getByLabel("Patient phone number")).toHaveValue("");
     await expect(page.getByRole("button", { name: "Submit ECG" })).toBeDisabled();
   });
+
+  test("patient search shows sign-in toast when API returns 401 (mocked)", async ({ page }) => {
+    await page.route("**/api/patients?phone=*", async (route) => {
+      await route.fulfill({ status: 401, body: "" });
+    });
+
+    await page.goto("/ecg-upload");
+    await page.getByLabel("Patient phone number").fill("+919000000002");
+    await page.getByRole("button", { name: "Search patient by phone" }).click();
+
+    await expect(page.getByText("Please sign in as a health worker")).toBeVisible();
+  });
+
+  test("patient search shows error when response is not JSON (mocked)", async ({ page }) => {
+    await page.route("**/api/patients?phone=*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "text/plain",
+        body: "upstream error page",
+      });
+    });
+
+    await page.goto("/ecg-upload");
+    await page.getByLabel("Patient phone number").fill("+919000000003");
+    await page.getByRole("button", { name: "Search patient by phone" }).click();
+
+    await expect(page.getByText("Could not load patient data")).toBeVisible();
+  });
+
+  test("ECG submit shows API error message (mocked 200 with success false)", async ({ page }) => {
+    const patientId = "clhride2etestpatientid03";
+
+    await page.route("**/api/patients?phone=*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          data: {
+            id: patientId,
+            fullName: "Error Flow Patient",
+            age: 48,
+            village: "V",
+            district: "D",
+            phone: "+919876543222",
+          },
+        }),
+      });
+    });
+
+    await page.route("**/api/ecg", async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.continue();
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: false,
+          error: "File type not allowed for this pilot",
+        }),
+      });
+    });
+
+    await page.goto("/ecg-upload");
+    await page.getByLabel("Patient phone number").fill("+919876543222");
+    await page.getByRole("button", { name: "Search patient by phone" }).click();
+    await page.getByRole("button", { name: /Tap to choose image or PDF/i }).click();
+    await page.locator('input[type="file"]').setInputFiles({
+      name: "ecg-test.png",
+      mimeType: "image/png",
+      buffer: tinyPng,
+    });
+    await page.getByRole("button", { name: "Submit ECG" }).click();
+
+    await expect(page.getByText("File type not allowed for this pilot")).toBeVisible();
+  });
+
+  test("remove file disables submit until a new file is chosen", async ({ page }) => {
+    const patientId = "clhride2etestpatientid04";
+
+    await page.route("**/api/patients?phone=*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          data: {
+            id: patientId,
+            fullName: "Remove File Patient",
+            age: 50,
+            village: "V",
+            district: "D",
+            phone: "+919876543223",
+          },
+        }),
+      });
+    });
+
+    await page.goto("/ecg-upload");
+    await page.getByLabel("Patient phone number").fill("+919876543223");
+    await page.getByRole("button", { name: "Search patient by phone" }).click();
+    await page.getByRole("button", { name: /Tap to choose image or PDF/i }).click();
+    await page.locator('input[type="file"]').setInputFiles({
+      name: "to-remove.png",
+      mimeType: "image/png",
+      buffer: tinyPng,
+    });
+
+    const submit = page.getByRole("button", { name: "Submit ECG" });
+    await expect(submit).toBeEnabled();
+    await page.getByRole("button", { name: "Remove file" }).click();
+    await expect(submit).toBeDisabled();
+  });
+
+  test("optional health worker notes still allow successful upload (mocked)", async ({ page }) => {
+    const patientId = "clhride2etestpatientid05";
+
+    await page.route("**/api/patients?phone=*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          data: {
+            id: patientId,
+            fullName: "Notes Patient",
+            age: 44,
+            village: "V",
+            district: "D",
+            phone: "+919876543224",
+          },
+        }),
+      });
+    });
+
+    await page.route("**/api/ecg", async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.continue();
+        return;
+      }
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, data: { id: "clhride2etecgrecordnotes" } }),
+      });
+    });
+
+    await page.goto("/ecg-upload");
+    await page.getByLabel("Patient phone number").fill("+919876543224");
+    await page.getByRole("button", { name: "Search patient by phone" }).click();
+    await page.getByRole("button", { name: /Tap to choose image or PDF/i }).click();
+    await page.locator('input[type="file"]').setInputFiles({
+      name: "with-notes.png",
+      mimeType: "image/png",
+      buffer: tinyPng,
+    });
+    await page.getByLabel(/Health Worker Notes/i).fill("Patient reports mild chest tightness since morning.");
+
+    await page.getByRole("button", { name: "Submit ECG" }).click();
+    await expect(page.getByRole("heading", { name: "ECG submitted" })).toBeVisible();
+  });
 });

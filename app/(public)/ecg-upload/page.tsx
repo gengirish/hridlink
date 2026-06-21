@@ -249,8 +249,11 @@ export default function ECGUploadPage() {
             </div>
 
             <div>
-              <label className="label">Health Worker Notes (optional)</label>
+              <label htmlFor="healthWorkerNotes" className="label">
+                Health Worker Notes (optional)
+              </label>
               <textarea
+                id="healthWorkerNotes"
                 {...register("healthWorkerNotes")}
                 className="input resize-none"
                 rows={3}
