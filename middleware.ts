@@ -38,6 +38,7 @@ export const config = {
     "/admin/:path*",
     "/cardiologist/:path*",
     "/api/admin/:path*",
+    "/api/ecg",
     "/api/ecg/:path*",
     "/api/patients/:path*",
   ],

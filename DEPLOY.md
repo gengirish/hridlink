@@ -84,6 +84,7 @@ Import the GitHub repo (or link CLI). Set environment variables:
 
 - `/api/patients`
 - `/api/ecg`
+- `/api/ecg/:id/signed-file-url`
 - `/api/ecg/:id/finding`
 - `/api/admin/stats`
 

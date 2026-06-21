@@ -23,6 +23,55 @@ const ALLOWED_MIME_TYPES = new Set([
 
 const VALID_ECG_STATUSES = new Set<string>(Object.values(ECGStatus));
 
+/** Supabase signed URL TTL (seconds) passed to createSignedUrl */
+const ECG_SIGNED_URL_TTL_SEC = 3600;
+const ECG_SIGNED_URL_TTL_MS = ECG_SIGNED_URL_TTL_SEC * 1000;
+/** Refresh client-side cache before Supabase expiry (55 min cap per product requirement) */
+const ECG_SIGNED_URL_CACHE_MS = Math.min(3_300_000, ECG_SIGNED_URL_TTL_MS);
+
+type EcgSignedUrlCacheEntry = { signedUrl: string; expiresAt: number };
+
+const ecgSignedUrlCache = new Map<string, EcgSignedUrlCacheEntry>();
+
+async function getCachedEcgListFileUrl(params: {
+  supabaseUrl: string;
+  storagePath: string | null;
+  fileUrl: string;
+}): Promise<string> {
+  const { supabaseUrl, storagePath, fileUrl } = params;
+  const publicPrefix = `${supabaseUrl}/storage/v1/object/public/${ECG_BUCKET}/`;
+
+  let cacheKey: string;
+  let objectPath: string | null;
+
+  if (storagePath) {
+    cacheKey = storagePath;
+    objectPath = storagePath;
+  } else if (fileUrl.startsWith(publicPrefix)) {
+    objectPath = fileUrl.slice(publicPrefix.length);
+    cacheKey = objectPath;
+  } else {
+    cacheKey = `__unsigned_as_is__:${fileUrl}`;
+    objectPath = null;
+  }
+
+  const now = Date.now();
+  const hit = ecgSignedUrlCache.get(cacheKey);
+  if (hit && hit.expiresAt > now) return hit.signedUrl;
+
+  if (objectPath == null) {
+    ecgSignedUrlCache.set(cacheKey, { signedUrl: fileUrl, expiresAt: now + ECG_SIGNED_URL_CACHE_MS });
+    return fileUrl;
+  }
+
+  const { data } = await supabaseAdmin.storage
+    .from(ECG_BUCKET)
+    .createSignedUrl(objectPath, ECG_SIGNED_URL_TTL_SEC);
+  const signedUrl = data?.signedUrl ?? fileUrl;
+  ecgSignedUrlCache.set(cacheKey, { signedUrl, expiresAt: now + ECG_SIGNED_URL_CACHE_MS });
+  return signedUrl;
+}
+
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
@@ -131,30 +180,35 @@ app.get("/api/ecg", async (req, res) => {
       prisma.eCGRecord.count({ where }),
     ]);
 
-    // Generate short-lived signed URLs for private ECG files
-    const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? "").replace(/\/$/, "");
-    const recordsWithUrls = await Promise.all(
-      records.map(async ({ storagePath, fileUrl, ...rest }) => {
-        if (storagePath) {
-          const { data } = await supabaseAdmin.storage
-            .from(ECG_BUCKET)
-            .createSignedUrl(storagePath, 3600);
-          return { ...rest, fileUrl: data?.signedUrl ?? fileUrl };
-        }
-        // Back-compat: extract path from legacy public URL
-        const publicPrefix = `${supabaseUrl}/storage/v1/object/public/${ECG_BUCKET}/`;
-        if (fileUrl.startsWith(publicPrefix)) {
-          const path = fileUrl.slice(publicPrefix.length);
-          const { data } = await supabaseAdmin.storage.from(ECG_BUCKET).createSignedUrl(path, 3600);
-          return { ...rest, fileUrl: data?.signedUrl ?? fileUrl };
-        }
-        return { ...rest, fileUrl };
-      })
-    );
-
-    return ok(res, { items: recordsWithUrls, total, page, limit });
+    // List omits signing — clients call GET /api/ecg/:id/signed-file-url when viewing an ECG (cached there).
+    return ok(res, { items: records, total, page, limit });
   } catch (e) {
     return serverErr(res, e, "GET /api/ecg");
+  }
+});
+
+app.get("/api/ecg/:id/signed-file-url", async (req, res) => {
+  try {
+    const session = await getSessionAppUser(req.headers.cookie);
+    if (!session || session.appRole == null) return err(res, "Authentication required", 401);
+    if (!hasAppRole(session.appRole, ecgListAccess)) return err(res, "Forbidden", 403);
+
+    const ecgId = req.params.id;
+    const row = await prisma.eCGRecord.findUnique({
+      where: { id: ecgId },
+      select: { storagePath: true, fileUrl: true },
+    });
+    if (!row) return err(res, "ECG record not found", 404);
+
+    const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? "").replace(/\/$/, "");
+    const fileUrl = await getCachedEcgListFileUrl({
+      supabaseUrl,
+      storagePath: row.storagePath,
+      fileUrl: row.fileUrl,
+    });
+    return ok(res, { fileUrl });
+  } catch (e) {
+    return serverErr(res, e, "GET /api/ecg/:id/signed-file-url");
   }
 });
 
@@ -291,18 +345,13 @@ app.get("/api/admin/stats", async (req, res) => {
     const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10));
     const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit ?? "100"), 10)));
 
-    const [
-      totalPatients,
-      normalCount,
-      watchCount,
-      urgentCount,
-      totalECGs,
-      records,
-    ] = await prisma.$transaction([
+    const [totalPatients, severityGroups, totalECGs, records] = await prisma.$transaction([
       prisma.patient.count(),
-      prisma.finding.count({ where: { severity: "NORMAL" } }),
-      prisma.finding.count({ where: { severity: "WATCH" } }),
-      prisma.finding.count({ where: { severity: "URGENT" } }),
+      prisma.finding.groupBy({
+        by: ["severity"],
+        _count: { _all: true },
+        orderBy: { severity: "asc" },
+      }),
       prisma.eCGRecord.count(),
       prisma.eCGRecord.findMany({
         orderBy: { createdAt: "desc" },
@@ -318,7 +367,17 @@ app.get("/api/admin/stats", async (req, res) => {
       }),
     ]);
 
-    const bySeverity = { NORMAL: normalCount, WATCH: watchCount, URGENT: urgentCount };
+    const bySeverity = { NORMAL: 0, WATCH: 0, URGENT: 0 };
+    for (const row of severityGroups) {
+      if (row.severity === "NORMAL" || row.severity === "WATCH" || row.severity === "URGENT") {
+        const c = row._count;
+        const n =
+          typeof c === "object" && c !== null && "_all" in c && typeof (c as { _all: unknown })._all === "number"
+            ? (c as { _all: number })._all
+            : 0;
+        bySeverity[row.severity] = n;
+      }
+    }
 
     return ok(res, { totalPatients, totalECGs, bySeverity, records, page, limit });
   } catch (e) {
