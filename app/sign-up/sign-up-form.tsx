@@ -60,6 +60,24 @@ export default function SignUpForm() {
             />
           </div>
 
+          <div>
+            <label htmlFor="phone" className="label">
+              Mobile number (optional)
+            </label>
+            <input
+              id="phone"
+              name="phone"
+              type="tel"
+              inputMode="numeric"
+              className="input"
+              placeholder="9876543210"
+              autoComplete="tel"
+            />
+            <p className="text-xs text-ink-500 mt-1">
+              10-digit Indian mobile. Used to notify you when a finding is ready.
+            </p>
+          </div>
+
           {state?.error ? (
             <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">
               {state.error}

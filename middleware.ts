@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 
 // Routes that the Neon Auth middleware must gate
-const AUTH_PROTECTED = ["/admin", "/cardiologist", "/api/admin", "/api/ecg/"];
+const AUTH_PROTECTED = ["/admin", "/cardiologist", "/register", "/ecg-upload", "/api/admin", "/api/ecg/"];
 // Routes proxied to Fly.io — need X-Internal-Secret injected
 const FLY_PROXIED = ["/api/patients", "/api/ecg", "/api/admin"];
 
@@ -37,6 +37,8 @@ export const config = {
   matcher: [
     "/admin/:path*",
     "/cardiologist/:path*",
+    "/register",
+    "/ecg-upload",
     "/api/admin/:path*",
     "/api/ecg",
     "/api/ecg/:path*",

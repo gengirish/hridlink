@@ -385,6 +385,60 @@ app.get("/api/admin/stats", async (req, res) => {
   }
 });
 
+app.get("/api/admin/users", async (req, res) => {
+  try {
+    const session = await getSessionAppUser(req.headers.cookie);
+    if (!session || session.appRole == null) return err(res, "Authentication required", 401);
+    if (!hasAppRole(session.appRole, [UserRole.ADMIN])) return err(res, "Forbidden", 403);
+
+    const users = await prisma.user.findMany({
+      orderBy: { createdAt: "desc" },
+      select: { id: true, name: true, email: true, role: true, phone: true, createdAt: true },
+    });
+
+    return ok(res, users);
+  } catch (e) {
+    return serverErr(res, e, "GET /api/admin/users");
+  }
+});
+
+app.patch("/api/admin/users/:id/role", express.json(), async (req, res) => {
+  try {
+    const session = await getSessionAppUser(req.headers.cookie);
+    if (!session || session.appRole == null) return err(res, "Authentication required", 401);
+    if (!hasAppRole(session.appRole, [UserRole.ADMIN])) return err(res, "Forbidden", 403);
+
+    const id = req.params.id;
+    const body = req.body as { role?: unknown };
+
+    if (typeof body.role !== "string" || !Object.values(UserRole).includes(body.role as UserRole)) {
+      return err(res, "Invalid role", 400);
+    }
+    const role = body.role as UserRole;
+
+    try {
+      const user = await prisma.user.update({
+        where: { id },
+        data: { role },
+        select: { id: true, name: true, email: true, role: true },
+      });
+      return ok(res, user);
+    } catch (updateErr: unknown) {
+      if (
+        typeof updateErr === "object" &&
+        updateErr !== null &&
+        "code" in updateErr &&
+        (updateErr as { code: string }).code === "P2025"
+      ) {
+        return err(res, "User not found", 404);
+      }
+      throw updateErr;
+    }
+  } catch (e) {
+    return serverErr(res, e, "PATCH /api/admin/users/:id/role");
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`[api-fly] listening on :${PORT}`);
 });
