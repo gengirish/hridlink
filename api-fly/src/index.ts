@@ -5,7 +5,7 @@ import { Gender, UserRole, Severity, ECGStatus } from "@prisma/client";
 import { prisma } from "./lib/prisma.js";
 import { ok, err, serverErr } from "./lib/json.js";
 import { createPatientSchema, submitFindingSchema } from "./lib/validators.js";
-import { supabaseAdmin, ECG_BUCKET } from "./lib/supabase.js";
+import { getSupabaseAdmin, ECG_BUCKET } from "./lib/supabase.js";
 import { sendToCardiologist, sendToHealthWorker } from "./lib/notify.js";
 import { getSessionAppUser, hasAppRole } from "./lib/session.js";
 
@@ -64,7 +64,7 @@ async function getCachedEcgListFileUrl(params: {
     return fileUrl;
   }
 
-  const { data } = await supabaseAdmin.storage
+  const { data } = await getSupabaseAdmin().storage
     .from(ECG_BUCKET)
     .createSignedUrl(objectPath, ECG_SIGNED_URL_TTL_SEC);
   const signedUrl = data?.signedUrl ?? fileUrl;
@@ -238,7 +238,7 @@ app.post("/api/ecg", upload.single("file"), async (req, res) => {
     const ext = file.originalname.split(".").pop()?.toLowerCase() ?? "bin";
     const storagePath = `${patientId}/${Date.now()}.${ext}`;
 
-    const { error: uploadError } = await supabaseAdmin.storage
+    const { error: uploadError } = await getSupabaseAdmin().storage
       .from(ECG_BUCKET)
       .upload(storagePath, file.buffer, {
         contentType: file.mimetype,

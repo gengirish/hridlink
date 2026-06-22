@@ -5,6 +5,7 @@ api-fly/dist/
 .DS_Store
 .env*.local
 .env
+.env.vercel
 *.tsbuildinfo
 next-env.d.ts
 
