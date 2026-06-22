@@ -30,6 +30,16 @@ export async function ensureAppUserForNeonUser(neonUser: {
 
   const existing = await prisma.user.findUnique({ where: { authUserId: neonUser.id } });
   if (!existing) {
+    const byEmail = trimmedEmail
+      ? await prisma.user.findUnique({ where: { email: trimmedEmail } })
+      : null;
+    if (byEmail) {
+      await prisma.user.update({
+        where: { email: trimmedEmail },
+        data: { authUserId: neonUser.id, ...update },
+      });
+      return;
+    }
     await prisma.user.create({
       data: {
         authUserId: neonUser.id,

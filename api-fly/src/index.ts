@@ -5,7 +5,11 @@ import { Gender, UserRole, Severity, ECGStatus } from "@prisma/client";
 import { prisma } from "./lib/prisma.js";
 import { ok, err, serverErr } from "./lib/json.js";
 import { createPatientSchema, submitFindingSchema } from "./lib/validators.js";
-import { getSupabaseAdmin, ECG_BUCKET } from "./lib/supabase.js";
+import {
+  ECG_SIGNED_URL_TTL_MS,
+  getPresignedEcgBlobUrl,
+  uploadEcgBlob,
+} from "./lib/blob.js";
 import { sendToCardiologist, sendToHealthWorker } from "./lib/notify.js";
 import { getSessionAppUser, hasAppRole } from "./lib/session.js";
 
@@ -23,52 +27,35 @@ const ALLOWED_MIME_TYPES = new Set([
 
 const VALID_ECG_STATUSES = new Set<string>(Object.values(ECGStatus));
 
-/** Supabase signed URL TTL (seconds) passed to createSignedUrl */
-const ECG_SIGNED_URL_TTL_SEC = 3600;
-const ECG_SIGNED_URL_TTL_MS = ECG_SIGNED_URL_TTL_SEC * 1000;
-/** Refresh client-side cache before Supabase expiry (55 min cap per product requirement) */
+/** Refresh in-process cache before presigned URL expiry (55 min cap) */
 const ECG_SIGNED_URL_CACHE_MS = Math.min(3_300_000, ECG_SIGNED_URL_TTL_MS);
 
 type EcgSignedUrlCacheEntry = { signedUrl: string; expiresAt: number };
 
 const ecgSignedUrlCache = new Map<string, EcgSignedUrlCacheEntry>();
 
-async function getCachedEcgListFileUrl(params: {
-  supabaseUrl: string;
+async function getCachedEcgFileUrl(params: {
   storagePath: string | null;
   fileUrl: string;
 }): Promise<string> {
-  const { supabaseUrl, storagePath, fileUrl } = params;
-  const publicPrefix = `${supabaseUrl}/storage/v1/object/public/${ECG_BUCKET}/`;
+  const { storagePath, fileUrl } = params;
 
-  let cacheKey: string;
-  let objectPath: string | null;
-
-  if (storagePath) {
-    cacheKey = storagePath;
-    objectPath = storagePath;
-  } else if (fileUrl.startsWith(publicPrefix)) {
-    objectPath = fileUrl.slice(publicPrefix.length);
-    cacheKey = objectPath;
-  } else {
-    cacheKey = `__unsigned_as_is__:${fileUrl}`;
-    objectPath = null;
-  }
-
-  const now = Date.now();
-  const hit = ecgSignedUrlCache.get(cacheKey);
-  if (hit && hit.expiresAt > now) return hit.signedUrl;
-
-  if (objectPath == null) {
+  if (fileUrl.startsWith("http://") || fileUrl.startsWith("https://")) {
+    const cacheKey = `__unsigned_as_is__:${fileUrl}`;
+    const now = Date.now();
+    const hit = ecgSignedUrlCache.get(cacheKey);
+    if (hit && hit.expiresAt > now) return hit.signedUrl;
     ecgSignedUrlCache.set(cacheKey, { signedUrl: fileUrl, expiresAt: now + ECG_SIGNED_URL_CACHE_MS });
     return fileUrl;
   }
 
-  const { data } = await getSupabaseAdmin().storage
-    .from(ECG_BUCKET)
-    .createSignedUrl(objectPath, ECG_SIGNED_URL_TTL_SEC);
-  const signedUrl = data?.signedUrl ?? fileUrl;
-  ecgSignedUrlCache.set(cacheKey, { signedUrl, expiresAt: now + ECG_SIGNED_URL_CACHE_MS });
+  const pathname = storagePath ?? fileUrl;
+  const now = Date.now();
+  const hit = ecgSignedUrlCache.get(pathname);
+  if (hit && hit.expiresAt > now) return hit.signedUrl;
+
+  const signedUrl = await getPresignedEcgBlobUrl(pathname);
+  ecgSignedUrlCache.set(pathname, { signedUrl, expiresAt: now + ECG_SIGNED_URL_CACHE_MS });
   return signedUrl;
 }
 
@@ -200,9 +187,7 @@ app.get("/api/ecg/:id/signed-file-url", async (req, res) => {
     });
     if (!row) return err(res, "ECG record not found", 404);
 
-    const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? "").replace(/\/$/, "");
-    const fileUrl = await getCachedEcgListFileUrl({
-      supabaseUrl,
+    const fileUrl = await getCachedEcgFileUrl({
       storagePath: row.storagePath,
       fileUrl: row.fileUrl,
     });
@@ -238,15 +223,10 @@ app.post("/api/ecg", upload.single("file"), async (req, res) => {
     const ext = file.originalname.split(".").pop()?.toLowerCase() ?? "bin";
     const storagePath = `${patientId}/${Date.now()}.${ext}`;
 
-    const { error: uploadError } = await getSupabaseAdmin().storage
-      .from(ECG_BUCKET)
-      .upload(storagePath, file.buffer, {
-        contentType: file.mimetype,
-        upsert: false,
-      });
-
-    if (uploadError) {
-      console.error("[ecg upload] supabase error:", uploadError);
+    try {
+      await uploadEcgBlob(storagePath, file.buffer, file.mimetype);
+    } catch (uploadError) {
+      console.error("[ecg upload] blob error:", uploadError);
       return err(res, "File upload failed", 500);
     }
 

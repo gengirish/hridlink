@@ -33,7 +33,7 @@ In the Vercel project → **Settings → Environment Variables** (at least **Pro
 | `API_UPSTREAM_URL` | Same as `FLY_API_URL` |
 | `DATABASE_URL`, `DIRECT_URL` | Neon strings for this app’s database |
 | `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET` | From Neon Auth; secret **identical** to Fly |
-| Supabase, MSG91, etc. | As in [.env.example](../.env.example) / [PRODUCTION-CHECKLIST.md](./PRODUCTION-CHECKLIST.md) |
+| Blob, MSG91, etc. | As in [.env.example](../.env.example) / [PRODUCTION-CHECKLIST.md](./PRODUCTION-CHECKLIST.md) |
 
 Redeploy after saving (Deployments → … → Redeploy), or push a commit so a new build runs. Production builds **require** `API_UPSTREAM_URL` or `next build` fails.
 

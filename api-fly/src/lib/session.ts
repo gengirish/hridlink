@@ -60,8 +60,13 @@ export async function getSessionAppUser(cookieHeader: string | undefined) {
 
   await ensureAppUserForNeonUser(neonUser);
 
-  const row = await prisma.user.findUnique({
-    where: { authUserId: neonUser.id },
+  const row = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { authUserId: neonUser.id },
+        ...(neonUser.email ? [{ email: neonUser.email.trim() }] : []),
+      ],
+    },
     select: { id: true, role: true, phone: true },
   });
 

@@ -35,7 +35,7 @@ async function main() {
     }),
   ]);
 
-  // Sample ECG served from the app's public folder — no Supabase upload needed for seed data
+  // Sample ECG served from the app's public folder — no Blob upload needed for seed data
   const APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? "https://hridlink.vercel.app").replace(/\/$/, "");
   const SAMPLE_ECG = `${APP_URL}/samples/ecg-sample.svg`;
 

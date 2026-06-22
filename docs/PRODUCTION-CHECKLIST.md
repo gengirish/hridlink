@@ -11,10 +11,7 @@ Use this after wiring Vercel and Fly per [DEPLOY.md](../DEPLOY.md). For a step-b
 | `DIRECT_URL` | Neon direct connection string (migrations / non-pooled). Same branch as `DATABASE_URL`. |
 | `NEON_AUTH_BASE_URL` | From Neon Auth configuration. Must match Fly so session validation works when cookies are forwarded. |
 | `NEON_AUTH_COOKIE_SECRET` | Long secret (32+ characters). **Must be identical** on Vercel and Fly. |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL (browser uploads / client). |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key (client-side storage access). |
 | `NEXT_PUBLIC_APP_URL` | Public site URL (e.g. `https://your-app.vercel.app`), no trailing slash issues handled in app code where relevant. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server-side storage; keep off the client. |
 | `MSG91_AUTH_KEY` | MSG91 API auth. |
 | `MSG91_CARDIOLOGIST_PHONE` | E.164, e.g. `+91...`. |
 | `MSG91_TEMPLATE_ID_CARDIOLOGIST` | WhatsApp template for new ECG alerts. |
@@ -32,8 +29,7 @@ Set the same logical stack the app expects in production (values must align with
 | `DIRECT_URL` | Same Neon direct URL (Prisma / migrations from dev or CI also use this). |
 | `NEON_AUTH_BASE_URL` | Same as Vercel. |
 | `NEON_AUTH_COOKIE_SECRET` | Same as Vercel (cookie sessions must verify on the API). |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase URL (API uses it for storage). |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role for server-side Supabase operations. |
+| `BLOB_READ_WRITE_TOKEN` | Vercel Blob read/write token (ECG file storage). Create store in Vercel → Storage → Blob. |
 | `MSG91_AUTH_KEY` | Same as Vercel. |
 | `MSG91_CARDIOLOGIST_PHONE` | Same as Vercel. |
 | `MSG91_TEMPLATE_ID_CARDIOLOGIST` | Same as Vercel. |

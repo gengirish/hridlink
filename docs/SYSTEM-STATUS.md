@@ -14,7 +14,7 @@ Browser
         └── Next rewrites  (/api/patients, /api/ecg, /api/admin → Fly.io)
                 └── Fly.io Express API  (hridlink-api.fly.dev)
                       ├── Neon PostgreSQL  (Prisma)
-                      └── Supabase Storage  (ECG files)
+                      └── Vercel Blob  (ECG files)
 ```
 
 ---
@@ -44,15 +44,15 @@ Browser
 ### ECG Upload (`/ecg-upload`)
 - Step 1: phone lookup → resolves `patientId`.
 - Step 2: file picker (image/PDF), optional notes → `multipart/form-data` POST to Fly.
-- Fly stores file in Supabase (`ECG_BUCKET`), creates `ECGRecord`, fires cardiologist WhatsApp + optional AgentMail email.
+- Fly stores file in Vercel Blob (private), creates `ECGRecord`, fires cardiologist WhatsApp + optional AgentMail email.
 - Submit button correctly disabled until both patient and file are selected.
 - 25 MB file-size cap enforced in multer.
 
 ### Cardiologist Queue (`/cardiologist`)
 - SSR pre-fetch via `serverFetchJson` — first paint shows data without a client waterfall.
 - Client 30s auto-refresh on PENDING filter, paused when tab is hidden (`visibilitychange`), resumed with an immediate reload when tab returns.
-- Per-ECG signed URL fetched lazily on modal open (`GET /api/ecg/:id/signed-file-url`) — avoids N Supabase sign calls on every list load.
-- Signed URL results cached in-process on Fly (55-min TTL, refreshed before Supabase 3600s expiry).
+- Per-ECG signed URL fetched lazily on modal open (`GET /api/ecg/:id/signed-file-url`) — avoids N Blob presign calls on every list load.
+- Signed URL results cached in-process on Fly (55-min TTL, refreshed before 3600s expiry).
 - Finding submission: severity + clinical notes + recommendation sent as PATCH; ECG status updated to `REVIEWED` or `URGENT`; health worker notified via WhatsApp + AgentMail if their email is on record.
 - Modal prevents submitting a finding if one already exists (shows "Already reviewed" state).
 
@@ -78,7 +78,7 @@ Browser
 - All core relations present: `User → ECGRecord (uploadedBy)`, `Patient → ECGRecord`, `ECGRecord → Finding` (1-to-1).
 - Compound index on `[status, createdAt]` supports efficient PENDING-first pagination.
 - `onDelete: Cascade` on Finding → ECGRecord and ECGRecord → Patient.
-- `storagePath` nullable on `ECGRecord` — back-compat with records created before Supabase migration.
+- `storagePath` nullable on `ECGRecord` — back-compat with seed rows and legacy path-only records.
 
 ### PWA
 - Service worker generated and registered in production via `@ducanh2912/next-pwa`.
@@ -148,7 +148,7 @@ A field health worker who is not signed in can fill the entire form and only dis
 
 ---
 
-### 5. Seed ECGRecords Use Public URLs (Not Supabase `storagePath`)
+### 5. Seed ECGRecords Use Public URLs (Not Blob `storagePath`)
 **Severity: Low-Medium**
 
 `prisma/seed.ts` creates ECG records with `fileUrl` pointing to `${APP_URL}/samples/ecg-sample.svg` and no `storagePath`. The `getCachedEcgListFileUrl` function handles this via the `__unsigned_as_is__` path, so the list still works. However:
@@ -167,7 +167,7 @@ In `POST /api/ecg`:
 ```ts
 fileUrl: storagePath, // placeholder; signed URLs generated on read
 ```
-`fileUrl` is set to the Supabase object path (e.g. `clhpatientid/1719000000000.jpg`), not a real URL. This is intentional (signing on read), but it means any consumer that reads `fileUrl` directly — including old rows, direct DB queries, or future integrations — will get a non-URL string. The column name `fileUrl` is misleading.
+`fileUrl` is set to the Blob pathname (e.g. `clhpatientid/1719000000000.jpg`), not a real URL. This is intentional (signing on read), but it means any consumer that reads `fileUrl` directly — including old rows, direct DB queries, or future integrations — will get a non-URL string. The column name `fileUrl` is misleading.
 
 ---
 
@@ -231,8 +231,7 @@ This means E2E catches UI regressions but not API contract breaks.
 | `DIRECT_URL` | ✅ (layouts) | ✅ | Set both |
 | `API_UPSTREAM_URL` | ✅ production | N/A | Must be Fly URL |
 | `INTERNAL_API_SECRET` | ✅ required | ✅ required | Must match |
-| `NEXT_PUBLIC_SUPABASE_URL` | ✅ | ✅ | Set both |
-| `SUPABASE_SERVICE_ROLE_KEY` | N/A | ✅ required | Fly only |
+| `BLOB_READ_WRITE_TOKEN` | N/A | ✅ required | Fly only — Vercel Blob ECG storage |
 | `MSG91_AUTH_KEY` | N/A | ⚠️ empty | **Not set** |
 | `MSG91_CARDIOLOGIST_PHONE` | N/A | ⚠️ empty | **Not set** |
 | `MSG91_TEMPLATE_ID_CARDIOLOGIST` | N/A | ⚠️ empty | **Not set** |
@@ -240,6 +239,12 @@ This means E2E catches UI regressions but not API contract breaks.
 | `NEXT_PUBLIC_APP_URL` | ✅ | ✅ | Set both |
 | `AGENTMAIL_API_KEY` | N/A | ✅ | Set on Fly |
 | `NOTIFY_CARDIOLOGIST_EMAIL` | N/A | ✅ optional | Set on Fly |
+
+---
+
+## Legacy Supabase ECG files
+
+ECG rows uploaded before this migration store a pathname in `storagePath` (e.g. `patientId/1719000000000.jpg`). Those files still live in Supabase until you copy them into your Vercel Blob store at the **same pathname**, or users re-upload. Seed/demo rows that use a public `fileUrl` (sample SVG) are unchanged.
 
 ---
 

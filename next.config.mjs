@@ -8,15 +8,6 @@ const withPWA = withPWAInit({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  images: {
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "*.supabase.co",
-      },
-    ],
-  },
-
   async rewrites() {
     const upstream = process.env.API_UPSTREAM_URL?.replace(/\/$/, "");
 

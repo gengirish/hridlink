@@ -19,6 +19,8 @@ Edit `fly.api.toml` if you change the app name.
 
 Set secrets (use your real values):
 
+**Vercel Blob:** In the Vercel dashboard → **Storage** → **Create Database/Store** → **Blob**. Copy the **Read/Write token** into `BLOB_READ_WRITE_TOKEN` on Fly (not required on Vercel — uploads go through the Fly API).
+
 ```bash
 # Generate a strong shared secret: openssl rand -hex 32
 fly secrets set --config fly.api.toml \
@@ -26,8 +28,7 @@ fly secrets set --config fly.api.toml \
   DIRECT_URL="postgresql://...direct...?sslmode=require" \
   NEON_AUTH_BASE_URL="https://....neonauth...." \
   NEON_AUTH_COOKIE_SECRET="(32+ chars, same as Vercel)" \
-  NEXT_PUBLIC_SUPABASE_URL="https://....supabase.co" \
-  SUPABASE_SERVICE_ROLE_KEY="..." \
+  BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..." \
   MSG91_AUTH_KEY="..." \
   MSG91_CARDIOLOGIST_PHONE="+91..." \
   MSG91_TEMPLATE_ID_CARDIOLOGIST="..." \
@@ -77,7 +78,7 @@ Import the GitHub repo (or link CLI). Set environment variables:
 | `INTERNAL_API_SECRET` | **Required** in production. 32-char hex shared with Fly — middleware injects `X-Internal-Secret` header; Fly rejects any request missing it. Generate: `openssl rand -hex 32` |
 | `DATABASE_URL`, `DIRECT_URL` | Neon DB URLs (layouts use Prisma for role checks) |
 | `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET` | Neon Auth (must match Fly for session cookie forwarding) |
-| `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY` | Storage |
+| `BLOB_READ_WRITE_TOKEN` | Vercel Blob (ECG files — **Fly only**) |
 | `MSG91_*`, `NEXT_PUBLIC_APP_URL` | WhatsApp notifications + deep-link URLs (email uses AgentMail on **Fly** only — see [docs/AGENTMAIL.md](docs/AGENTMAIL.md)) |
 
 `next.config.mjs` always rewrites these paths to `API_UPSTREAM_URL` in production; in local dev, set the variable or rewrites are skipped and those URLs **404** (by design — no silent fallback to a local Prisma API in Next).
@@ -123,4 +124,4 @@ npm run test:e2e:install   # Chromium (first time)
 npm run test:e2e           # starts `npm run dev:stack` (Next + local Fly API) unless skipped
 ```
 
-See `tests/e2e/README.md`. Default suite **mocks `/api/*`** so it does not require a live Neon/Supabase; the dev server still runs with rewrites to `http://127.0.0.1:8080` by default.
+See `tests/e2e/README.md`. Default suite **mocks `/api/*`** so it does not require a live Neon/Blob store; the dev server still runs with rewrites to `http://127.0.0.1:8080` by default.

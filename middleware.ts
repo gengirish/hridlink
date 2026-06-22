@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
+import { cleanEnv, filterCookiesForFly } from "@/lib/fly-proxy";
 
 // Routes that the Neon Auth middleware must gate
-const AUTH_PROTECTED = ["/admin", "/cardiologist", "/register", "/ecg-upload", "/api/admin", "/api/ecg/"];
+const AUTH_PROTECTED = ["/admin", "/cardiologist", "/register", "/ecg-upload", "/api/admin", "/api/ecg"];
 // Routes proxied to Fly.io — need X-Internal-Secret injected
 const FLY_PROXIED = ["/api/patients", "/api/ecg", "/api/admin"];
 
@@ -23,11 +24,14 @@ export async function middleware(req: NextRequest) {
   }
 
   // 2. Inject X-Internal-Secret for Fly.io-proxied routes (headers forwarded by Next.js rewrites)
-  const secret = process.env.INTERNAL_API_SECRET;
+  const secret = cleanEnv(process.env.INTERNAL_API_SECRET);
   if (secret && FLY_PROXIED.some((p) => pathname.startsWith(p))) {
-    const headers = new Headers(req.headers);
-    headers.set("x-internal-secret", secret);
-    return NextResponse.next({ request: { headers } });
+    const reqHeaders = new Headers(req.headers);
+    reqHeaders.set("x-internal-secret", secret);
+    const filteredCookie = filterCookiesForFly(req.headers.get("cookie"));
+    if (filteredCookie) reqHeaders.set("cookie", filteredCookie);
+    else reqHeaders.delete("cookie");
+    return NextResponse.next({ request: { headers: reqHeaders } });
   }
 
   return NextResponse.next();

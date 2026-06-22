@@ -102,10 +102,9 @@ Align with [DEPLOY.md §2](../DEPLOY.md#2-vercel--ui--auth-proxy):
 | `INTERNAL_API_SECRET` | Shared with Fly; same value on both sides. |
 | `DATABASE_URL`, `DIRECT_URL` | Neon URLs (Prisma on Vercel for role/layout data). |
 | `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET` | Must match Fly for cookie/session behaviour. |
-| `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY` | Storage (see app/Fly secrets in DEPLOY). |
 | `MSG91_*`, `NEXT_PUBLIC_APP_URL` | WhatsApp + absolute links (optional MSG91 for real sends). |
 
-Fly secrets (including the same `DATABASE_URL`, auth, Supabase, `INTERNAL_API_SECRET`) are set with **`fly secrets`**, not Vercel—see [DEPLOY.md §1](../DEPLOY.md#1-flyio--api).
+Fly secrets (including the same `DATABASE_URL`, auth, `BLOB_READ_WRITE_TOKEN`, `INTERNAL_API_SECRET`) are set with **`fly secrets`**, not Vercel—see [DEPLOY.md §1](../DEPLOY.md#1-flyio--api).
 
 ## PowerShell examples (Windows)
 

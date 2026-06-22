@@ -63,7 +63,13 @@ export function CardiologistQueue({ initialList }: { initialList: ECGListData | 
       const qs = filter === "PENDING" ? "status=PENDING" : "";
       const res = await fetch(`/api/ecg?${qs}&limit=50`);
       const json: ApiResponse<ECGListData> = await res.json();
-      if (json.success && json.data) {
+      if (!json.success) {
+        if (res.status === 403) {
+          toast.error("Your account does not have cardiologist access.");
+        }
+        return;
+      }
+      if (json.data) {
         setEcgs(json.data.items);
         setTotal(json.data.total);
         setLastRefresh(new Date());
