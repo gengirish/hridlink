@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { cleanEnv, filterCookiesForFly } from "@/lib/fly-proxy";
 
-// Routes that the Neon Auth middleware must gate
-const AUTH_PROTECTED = ["/admin", "/cardiologist", "/register", "/ecg-upload", "/api/admin", "/api/ecg"];
+// Page routes gated by Neon Auth middleware (Fly API routes auth via session cookies + roles)
+const AUTH_PROTECTED = ["/admin", "/cardiologist", "/register", "/ecg-upload"];
 // Routes proxied to Fly.io — need X-Internal-Secret injected
 const FLY_PROXIED = ["/api/patients", "/api/ecg", "/api/admin"];
 
 const authMiddleware = auth.middleware({ loginUrl: "/sign-in" });
+const INTERNAL_SECRET = cleanEnv(process.env.INTERNAL_API_SECRET);
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -17,17 +18,13 @@ export async function middleware(req: NextRequest) {
   if (needsAuth) {
     // @ts-expect-error — auth middleware is Next.js-compatible; event arg unused
     const authResult = await Promise.resolve(authMiddleware(req, {}));
-    // If auth middleware returned a redirect or error, honour it
-    if (authResult && (authResult as NextResponse).status !== 200) {
-      return authResult as NextResponse;
-    }
+    if (authResult) return authResult as NextResponse;
   }
 
   // 2. Inject X-Internal-Secret for Fly.io-proxied routes (headers forwarded by Next.js rewrites)
-  const secret = cleanEnv(process.env.INTERNAL_API_SECRET);
-  if (secret && FLY_PROXIED.some((p) => pathname.startsWith(p))) {
+  if (INTERNAL_SECRET && FLY_PROXIED.some((p) => pathname.startsWith(p))) {
     const reqHeaders = new Headers(req.headers);
-    reqHeaders.set("x-internal-secret", secret);
+    reqHeaders.set("x-internal-secret", INTERNAL_SECRET);
     const filteredCookie = filterCookiesForFly(req.headers.get("cookie"));
     if (filteredCookie) reqHeaders.set("cookie", filteredCookie);
     else reqHeaders.delete("cookie");
@@ -43,6 +40,7 @@ export const config = {
     "/cardiologist/:path*",
     "/register",
     "/ecg-upload",
+    "/api/admin",
     "/api/admin/:path*",
     "/api/ecg",
     "/api/ecg/:path*",
