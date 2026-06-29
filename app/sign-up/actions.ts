@@ -46,18 +46,19 @@ export async function signUpWithEmail(
   await syncAppUserFromSession();
 
   const rawPhone = getFormString(formData, "phone");
-  if (rawPhone?.trim()) {
-    const normalizedPhone = normalizeIndianPhone(rawPhone);
-    if (!/^\+91[6-9]\d{9}$/.test(normalizedPhone)) {
-      return { error: "Enter a valid 10-digit Indian mobile number, or leave it blank." };
-    }
-    const { data: session } = await auth.getSession();
-    if (session?.user?.id) {
-      await prisma.user.update({
-        where: { authUserId: session.user.id },
-        data: { phone: normalizedPhone },
-      });
-    }
+  if (!rawPhone?.trim()) {
+    return { error: "Mobile number is required for WhatsApp finding alerts." };
+  }
+  const normalizedPhone = normalizeIndianPhone(rawPhone);
+  if (!/^\+91[6-9]\d{9}$/.test(normalizedPhone)) {
+    return { error: "Enter a valid 10-digit Indian mobile number." };
+  }
+  const { data: session } = await auth.getSession();
+  if (session?.user?.id) {
+    await prisma.user.update({
+      where: { authUserId: session.user.id },
+      data: { phone: normalizedPhone },
+    });
   }
 
   redirect("/");

@@ -22,12 +22,22 @@ type StatsRecord = {
   createdAt: string;
   status: string;
   patient: Patient;
-  finding: { severity: string; createdAt: string } | null;
+  finding: {
+    severity: string;
+    clinicalNotes: string;
+    recommendation: string;
+    createdAt: string;
+    reviewedBy: { id: string; name: string } | null;
+  } | null;
 };
 
 export type Stats = {
   totalPatients: number;
   totalECGs: number;
+  pendingCount: number;
+  reviewedCount: number;
+  completionRate: number;
+  medianResponseMinutes: number | null;
   bySeverity: { NORMAL: number; WATCH: number; URGENT: number };
   records: StatsRecord[];
   page: number;
@@ -69,7 +79,20 @@ function RoleBadge({ role }: { role: string }) {
 
 function exportCSV(stats: Stats) {
   const rows = [
-    ["Patient", "Village", "District", "Phone", "Status", "Severity", "Response Time", "Uploaded"],
+    [
+      "Patient",
+      "Village",
+      "District",
+      "Phone",
+      "Status",
+      "Severity",
+      "Response Time",
+      "Reviewer",
+      "Reviewed At",
+      "Clinical Notes",
+      "Recommendation",
+      "Uploaded",
+    ],
     ...stats.records.map((r) => [
       r.patient.fullName,
       r.patient.village,
@@ -78,6 +101,12 @@ function exportCSV(stats: Stats) {
       r.status,
       r.finding?.severity ?? "—",
       responseMinutes(r.createdAt, r.finding?.createdAt ?? null),
+      r.finding?.reviewedBy?.name ?? "—",
+      r.finding?.createdAt
+        ? new Date(r.finding.createdAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })
+        : "—",
+      r.finding?.clinicalNotes ?? "—",
+      r.finding?.recommendation ?? "—",
       new Date(r.createdAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
     ]),
   ];
@@ -187,12 +216,33 @@ export function AdminDashboard({ initialStats }: { initialStats: Stats | null })
         {tab === "stats" && (
           <>
             {statsLoading ? (
-              <p className="py-20 text-center text-sm text-ink-500">Loading pilot stats…</p>
+              <div aria-hidden="true">
+                <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <div key={i} className="card col-span-1 p-5 text-center">
+                      <div className="mx-auto h-8 w-12 animate-pulse rounded bg-ink-200" />
+                      <div className="mx-auto mt-2 h-3 w-16 animate-pulse rounded bg-ink-100" />
+                    </div>
+                  ))}
+                </div>
+                <div className="card overflow-hidden shadow-soft">
+                  <div className="divide-y divide-ink-100">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-4 px-4 py-3.5">
+                        <div className="h-4 w-32 animate-pulse rounded bg-ink-200" />
+                        <div className="h-4 w-24 animate-pulse rounded bg-ink-100" />
+                        <div className="h-4 w-20 animate-pulse rounded bg-ink-100" />
+                        <div className="ml-auto h-5 w-16 animate-pulse rounded-full bg-ink-100" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             ) : !stats ? (
               <p className="py-20 text-center text-sm text-red-600">Failed to load stats.</p>
             ) : (
               <>
-                <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-5">
+                <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
                   <div className="card col-span-1 p-5 text-center">
                     <p className="text-3xl font-semibold tabular-nums text-ink-900">{stats.totalPatients}</p>
                     <p className="mt-1 text-xs font-medium uppercase tracking-wide text-ink-500">Patients</p>
@@ -200,6 +250,26 @@ export function AdminDashboard({ initialStats }: { initialStats: Stats | null })
                   <div className="card col-span-1 p-5 text-center">
                     <p className="text-3xl font-semibold tabular-nums text-ink-900">{stats.totalECGs}</p>
                     <p className="mt-1 text-xs font-medium uppercase tracking-wide text-ink-500">ECGs</p>
+                  </div>
+                  <div className="card col-span-1 border-amber-200/80 bg-amber-50/40 p-5 text-center">
+                    <p className="text-3xl font-semibold tabular-nums text-amber-700">{stats.pendingCount}</p>
+                    <p className="mt-1 text-xs font-medium uppercase tracking-wide text-amber-900/80">Pending</p>
+                  </div>
+                  <div className="card col-span-1 border-sky-200/80 bg-sky-50/40 p-5 text-center">
+                    <p className="text-3xl font-semibold tabular-nums text-sky-700">
+                      {stats.medianResponseMinutes != null ? `${stats.medianResponseMinutes}m` : "—"}
+                    </p>
+                    <p className="mt-1 text-xs font-medium uppercase tracking-wide text-sky-900/80">
+                      Median response
+                    </p>
+                  </div>
+                  <div className="card col-span-1 border-violet-200/80 bg-violet-50/40 p-5 text-center">
+                    <p className="text-3xl font-semibold tabular-nums text-violet-700">
+                      {stats.completionRate}%
+                    </p>
+                    <p className="mt-1 text-xs font-medium uppercase tracking-wide text-violet-900/80">
+                      Reviewed
+                    </p>
                   </div>
                   <div className="card col-span-1 border-emerald-200/80 bg-emerald-50/40 p-5 text-center">
                     <p className="text-3xl font-semibold tabular-nums text-emerald-700">{stats.bySeverity.NORMAL}</p>
@@ -220,7 +290,8 @@ export function AdminDashboard({ initialStats }: { initialStats: Stats | null })
                     <table className="min-w-full text-sm">
                       <thead className="border-b border-ink-100 bg-ink-50/80">
                         <tr>
-                          {["Patient", "Village", "District", "Status", "Severity", "Response"].map((h) => (
+                          {["Patient", "Village", "District", "Status", "Severity", "Response", "Reviewer"].map(
+                            (h) => (
                             <th
                               key={h}
                               className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-ink-500"
@@ -254,6 +325,9 @@ export function AdminDashboard({ initialStats }: { initialStats: Stats | null })
                                 {responseMinutes(r.createdAt, r.finding?.createdAt ?? null)}
                               </span>
                             </td>
+                            <td className="px-4 py-3 text-ink-600">
+                              {r.finding?.reviewedBy?.name ?? "—"}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -272,7 +346,16 @@ export function AdminDashboard({ initialStats }: { initialStats: Stats | null })
         {tab === "team" && (
           <div className="card overflow-hidden shadow-soft">
             {teamLoading ? (
-              <p className="py-10 text-center text-sm text-ink-500">Loading team…</p>
+              <div className="divide-y divide-ink-100" aria-hidden="true">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-4 px-4 py-3.5">
+                    <div className="h-4 w-28 animate-pulse rounded bg-ink-200" />
+                    <div className="h-4 w-40 animate-pulse rounded bg-ink-100" />
+                    <div className="h-4 w-20 animate-pulse rounded bg-ink-100" />
+                    <div className="ml-auto h-6 w-24 animate-pulse rounded-full bg-ink-100" />
+                  </div>
+                ))}
+              </div>
             ) : !team || team.length === 0 ? (
               <p className="py-10 text-center text-sm text-ink-500">No users yet.</p>
             ) : (

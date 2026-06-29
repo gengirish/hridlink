@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Heart, Upload, Stethoscope, BarChart3, Shield, Radio, Clock } from "lucide-react";
+import { ArrowRight, Heart, Upload, Stethoscope, BarChart3, Shield, Radio, Clock, ClipboardList } from "lucide-react";
 
 export default function HomePage() {
   return (
@@ -27,6 +27,12 @@ export default function HomePage() {
                 Upload an ECG
               </Link>
             </div>
+            <p className="mt-3 text-xs text-ink-500">
+              You&apos;ll be asked to sign in.{" "}
+              <Link href="/sign-in" className="link text-xs">
+                Sign in
+              </Link>
+            </p>
             <ul className="mt-10 grid gap-4 sm:grid-cols-3">
               {[
                 { icon: Shield, t: "Built for field use", d: "Large tap targets, simple steps, low clutter." },
@@ -76,6 +82,21 @@ export default function HomePage() {
                       <ArrowRight className="h-4 w-4 shrink-0 text-ink-400 transition group-hover:translate-x-0.5 group-hover:text-brand-700" />
                     </span>
                     <span className="mt-0.5 block text-sm text-ink-500">Find by mobile → attach file → submit</span>
+                  </span>
+                </Link>
+                <Link
+                  href="/my-ecgs"
+                  className="group flex items-center gap-4 rounded-2xl border border-ink-100 bg-ink-50/50 p-4 transition hover:border-brand-200 hover:bg-brand-50/60"
+                >
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-brand-700 shadow-sm ring-1 ring-ink-200">
+                    <ClipboardList className="h-5 w-5" aria-hidden />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-ink-900">My ECGs</span>
+                      <ArrowRight className="h-4 w-4 shrink-0 text-ink-400 transition group-hover:translate-x-0.5 group-hover:text-brand-700" />
+                    </span>
+                    <span className="mt-0.5 block text-sm text-ink-500">Track uploads and read findings</span>
                   </span>
                 </Link>
                 <Link

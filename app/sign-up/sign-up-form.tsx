@@ -1,9 +1,32 @@
 "use client";
 
-import { useFormState } from "react-dom";
+import { useFormState, useFormStatus } from "react-dom";
 import Link from "next/link";
+import { Loader2 } from "lucide-react";
 import { signUpWithEmail } from "./actions";
 import { AuthShell } from "@/components/auth-shell";
+
+function SubmitButton({ children }: { children: React.ReactNode }) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      aria-busy={pending}
+      className="btn-primary w-full py-3 disabled:opacity-60 disabled:cursor-not-allowed"
+    >
+      {pending ? (
+        <>
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          Creating account…
+        </>
+      ) : (
+        children
+      )}
+    </button>
+  );
+}
 
 export default function SignUpForm() {
   const [state, formAction] = useFormState(signUpWithEmail, null);
@@ -62,19 +85,20 @@ export default function SignUpForm() {
 
           <div>
             <label htmlFor="phone" className="label">
-              Mobile number (optional)
+              Mobile number
             </label>
             <input
               id="phone"
               name="phone"
               type="tel"
               inputMode="numeric"
+              required
               className="input"
               placeholder="9876543210"
               autoComplete="tel"
             />
             <p className="text-xs text-ink-500 mt-1">
-              10-digit Indian mobile. Used to notify you when a finding is ready.
+              10-digit Indian mobile. Required — we notify you on WhatsApp when a finding is ready.
             </p>
           </div>
 
@@ -84,9 +108,7 @@ export default function SignUpForm() {
             </p>
           ) : null}
 
-          <button type="submit" className="btn-primary w-full py-3">
-            Create account
-          </button>
+          <SubmitButton>Create account</SubmitButton>
         </div>
       </form>
     </AuthShell>

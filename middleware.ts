@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth/server";
 import { cleanEnv, filterCookiesForFly } from "@/lib/fly-proxy";
 
 // Page routes gated by Neon Auth middleware (Fly API routes auth via session cookies + roles)
-const AUTH_PROTECTED = ["/admin", "/cardiologist", "/register", "/ecg-upload"];
+const AUTH_PROTECTED = ["/admin", "/cardiologist", "/register", "/ecg-upload", "/my-ecgs"];
 // Routes proxied to Fly.io — need X-Internal-Secret injected
 const FLY_PROXIED = ["/api/patients", "/api/ecg", "/api/admin"];
 
@@ -40,6 +40,7 @@ export const config = {
     "/cardiologist/:path*",
     "/register",
     "/ecg-upload",
+    "/my-ecgs",
     "/api/admin",
     "/api/admin/:path*",
     "/api/ecg",

@@ -81,6 +81,20 @@ export async function getSessionAppUser(cookieHeader: string | undefined) {
   return { neonUser, appRole: row?.role ?? null, userId: row?.id ?? null, userPhone: row?.phone ?? null } as const;
 }
 
+/**
+ * Drop the cached session for a single Neon auth user so their next API
+ * request re-reads the DB (e.g. after an admin changes their role).
+ * The cache is keyed by the Neon auth user id (`neonUser.id` === `User.authUserId`).
+ */
+export function invalidateSessionCacheByAuthUserId(authUserId: string): void {
+  sessionCache.delete(authUserId);
+}
+
+/** Clear every cached session — safe fallback when a targeted invalidation isn't possible. */
+export function clearSessionCache(): void {
+  sessionCache.clear();
+}
+
 export function hasAppRole(appRole: UserRole | null, allowed: UserRole[]): boolean {
   return appRole != null && allowed.includes(appRole);
 }

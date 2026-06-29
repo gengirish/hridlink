@@ -32,6 +32,7 @@ export default function ECGUploadPage() {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [done, setDone] = useState<ECGResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -79,36 +80,47 @@ export default function ECGUploadPage() {
       return;
     }
     setUploading(true);
+    setUploadProgress(0);
     try {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("patientId", data.patientId);
       if (data.healthWorkerNotes) formData.append("healthWorkerNotes", data.healthWorkerNotes);
 
-      const res = await fetch("/api/ecg", {
-        method: "POST",
-        body: formData,
-        credentials: "include",
+      const json = await new Promise<ApiResponse<ECGResult>>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/ecg");
+        xhr.withCredentials = true;
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
+        };
+        xhr.onload = () => {
+          if (xhr.status === 401 || xhr.status === 403) {
+            toast.error("Please sign in as a health worker");
+            resolve({ success: false, error: "Unauthorized" });
+            return;
+          }
+          try {
+            resolve(JSON.parse(xhr.responseText) as ApiResponse<ECGResult>);
+          } catch {
+            reject(new Error("Invalid response"));
+          }
+        };
+        xhr.onerror = () => reject(new Error("Network error"));
+        xhr.send(formData);
       });
-      if (res.status === 401 || res.status === 403) {
-        toast.error("Please sign in as a health worker");
-        return;
-      }
-      let json: ApiResponse<ECGResult>;
-      try {
-        json = (await res.json()) as ApiResponse<ECGResult>;
-      } catch {
-        toast.error("Upload failed");
-        return;
-      }
+
       if (!json.success || !json.data) {
         toast.error(json.error ?? "Upload failed");
         return;
       }
       setDone(json.data);
       toast.success("ECG uploaded. Cardiologist notified via WhatsApp.");
+    } catch {
+      toast.error("Upload failed");
     } finally {
       setUploading(false);
+      setUploadProgress(null);
     }
   }
 
@@ -122,9 +134,12 @@ export default function ECGUploadPage() {
             </div>
             <h2 className="mt-5 text-xl font-semibold tracking-tight text-ink-900">ECG submitted</h2>
             <p className="mt-2 text-sm leading-relaxed text-ink-600">
-              The cardiologist is notified via WhatsApp and can review from their dashboard.
+              The cardiologist is notified via WhatsApp. Track status and read the finding on My ECGs.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <a href="/my-ecgs" className="btn-primary flex-1 text-center">
+                View My ECGs
+              </a>
               <button
                 type="button"
                 className="btn-secondary flex-1"
@@ -137,9 +152,6 @@ export default function ECGUploadPage() {
               >
                 Upload another
               </button>
-              <a href="/" className="btn-primary flex-1 text-center">
-                Home
-              </a>
             </div>
           </div>
         </div>
@@ -269,8 +281,26 @@ export default function ECGUploadPage() {
               disabled={uploading || !patient || !file}
               className="btn-primary w-full py-3"
             >
-              {uploading ? "Uploading…" : "Submit ECG"}
+              {uploading
+                ? uploadProgress != null
+                  ? `Uploading… ${uploadProgress}%`
+                  : "Uploading…"
+                : "Submit ECG"}
             </button>
+            {uploading && uploadProgress != null && (
+              <div
+                className="h-2 overflow-hidden rounded-full bg-ink-100"
+                role="progressbar"
+                aria-valuenow={uploadProgress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                <div
+                  className="h-full rounded-full bg-brand-600 transition-all duration-150"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+            )}
           </form>
         </div>
       </div>

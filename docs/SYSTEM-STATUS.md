@@ -1,6 +1,6 @@
 # HridLink — System Status & Deep-Dive Analysis
 
-_Generated: 22 June 2026_
+_Generated: 29 June 2026_
 
 ---
 
@@ -28,10 +28,10 @@ Browser
 - `ensureAppUserForNeonUser` on the Fly side handles users who arrive via direct API calls without going through the Next.js sign-in flow.
 - Session in-process cache on Fly (`sessionCache`, 5-min TTL) avoids repeated DB lookups per request.
 - BOM / zero-width space cleanup in `normalizeAuthEnvString` — robust to copy-paste artefacts in Vercel/Fly env vars.
-- Layout-level RBAC: `/cardiologist` requires `CARDIOLOGIST`, `/admin` requires `ADMIN`; both redirect to `/sign-in` if unauthenticated.
+- Layout/page-level RBAC: `/cardiologist` requires `CARDIOLOGIST`, `/admin` requires `ADMIN`. Unauthenticated users are redirected to `/sign-in`; authenticated users with the wrong role now render a graceful `RoleGate` "Access restricted" screen (`components/role-gate.tsx`) instead of a silent redirect to `/`.
 
 ### Middleware
-- Auth gate for `/admin`, `/cardiologist`, and `/api/ecg/`, `/api/admin` routes.
+- Auth gate (Neon Auth) for `AUTH_PROTECTED` page routes: `/admin`, `/cardiologist`, `/register`, `/ecg-upload`, `/my-ecgs`, plus the `/api/ecg`, `/api/admin` API routes.
 - `X-Internal-Secret` injection for all Fly-proxied paths: `/api/patients`, `/api/patients/:path*`, `/api/ecg`, `/api/ecg/:path*`, `/api/admin/:path*`.
 - Both bare paths (e.g. `POST /api/patients`) and sub-paths are covered after the recent matcher fix.
 
@@ -113,38 +113,38 @@ Browser
 
 ---
 
-### 2. No Role-Upgrade UI or Admin Panel for Role Management
-**Severity: High**
+### 2. Role-Upgrade UI — RESOLVED (with caveats)
+**Severity: Resolved**
 
-All new sign-ups get `HEALTH_WORKER` by default. To become a cardiologist or admin, a user must either:
-- Sign up with a seeded email (`dr.cardiac@hridlink.com`, `admin@hridlink.com`), or
-- Have their `role` updated directly in the database via Prisma Studio or SQL.
+The admin dashboard now has a **Team** tab (`app/(protected)/admin/admin-dashboard.tsx`) that lists all users (name, email, phone, role, joined date) with a role `<select>` per row. Changing it calls `PATCH /api/admin/users/:id/role`, which validates the new role against the `UserRole` enum, updates the Prisma `User`, and is admin-gated on the Fly side. Health workers can now be promoted to cardiologist or admin from the UI — no Prisma Studio / SQL required.
 
-There is no admin UI for promoting users to cardiologist or admin roles. This is a hard blocker for onboarding any real cardiologist beyond the seeded account.
+**Stale-role caveat is fixed:** the Fly role handler calls `invalidateSessionCacheByAuthUserId(user.authUserId)` immediately after the update, so the new role takes effect on the user's very next API request rather than after the ~5-minute session-cache TTL. (Note: this in-process cache is per-machine — in a multi-machine Fly deployment other machines would still honor their own TTL. Acceptable for the single auto-start-machine pilot.)
+
+**Remaining gaps:**
+- There is no guard against demoting the **last admin** or against an admin **demoting themselves** — an admin could lock everyone (or themselves) out of the admin panel.
+- No confirmation step on role change.
 
 ---
 
-### 3. Health Worker Phone Not Collected at Sign-Up
-**Severity: Medium**
+### 3. Health Worker Phone at Sign-Up — RESOLVED (for the sign-up path)
+**Severity: Low**
 
-`User.phone` is optional in the schema. The sign-up form (and `syncAppUserFromSession`) never prompts for a phone number. When a finding is submitted, `sendToHealthWorker` is called with `ecgRecord.uploadedBy?.phone`. If that is null, the log prints:
+The sign-up form (`app/sign-up/sign-up-form.tsx`) now collects a mobile number, and `app/sign-up/actions.ts` **requires** it: the action rejects an empty value ("Mobile number is required for WhatsApp finding alerts."), normalizes it to E.164 (`+91XXXXXXXXXX`) via `normalizeIndianPhone`, validates `^\+91[6-9]\d{9}$`, and stores it on the Prisma `User.phone` after sign-up. So any health worker who registers through the form will have a phone on record for WhatsApp finding notifications.
+
+**Remaining gap:** phone is only collected on the Next.js sign-up form path. Users provisioned by other routes — the Fly-side `ensureAppUserForNeonUser`, or pre-seeded role rows claimed by email in `syncAppUserFromSession` — are created without a phone and have no in-app UI to add one later. For those accounts, `sendToHealthWorker` still hits `ecgRecord.uploadedBy?.phone == null` and logs:
 
 ```
 [notify] ECG {id} has no uploadedBy phone — health worker not notified
 ```
 
-The health worker **never receives a notification** unless they manually update their phone, which has no UI path.
-
 ---
 
-### 4. `register` and `ecg-upload` Pages Have No Auth Gate
-**Severity: Medium**
+### 4. `register` and `ecg-upload` Auth Gate — RESOLVED
+**Severity: Resolved**
 
-Both `/register` and `/ecg-upload` are in `app/(public)/` — accessible without a session. When an unauthenticated user submits, they get a `401` toast ("Please sign in as a health worker"). However:
-- There is no redirect to `/sign-in` on page load.
-- The middleware's `AUTH_PROTECTED` list does not include `/register` or `/ecg-upload`.
+`/register`, `/ecg-upload` (and `/my-ecgs`) are now in the `AUTH_PROTECTED` list in `middleware.ts` and are covered by the middleware `matcher`. Unauthenticated users hitting these pages are redirected to `/sign-in` (via `auth.middleware({ loginUrl: "/sign-in" })`) on page load, instead of filling the whole form and only failing at submission time.
 
-A field health worker who is not signed in can fill the entire form and only discover the problem at submission time.
+**Note:** the route files still live under `app/(public)/`, so that folder name is now a misnomer — these pages are no longer public.
 
 ---
 
@@ -253,9 +253,8 @@ ECG rows uploaded before this migration store a pathname in `storagePath` (e.g. 
 | # | Issue | Effort |
 |---|---|---|
 | 1 | Set MSG91 secrets on Fly — WhatsApp alerts broken | 15 min |
-| 2 | Add phone-number field to sign-up so health worker can receive finding notifications | 1–2 h |
-| 3 | Add role-promotion UI in admin dashboard (or at minimum a Prisma Studio link in DEPLOY.md) | 2–4 h |
-| 4 | Redirect unauthenticated users from `/register` and `/ecg-upload` to `/sign-in` | 30 min |
-| 5 | Add `public/samples/ecg-sample.svg` if missing (demo seed data) | 10 min |
-| 6 | Add upload progress indicator for ECG files | 1 h |
-| 7 | Document in-DB role upgrade steps clearly for pilot operators | 30 min |
+| 2 | Add favicon/PWA app icons (currently 404 — `/icon-192x192.png`, `/icon-512x512.png`, `/apple-touch-icon.png` referenced in `layout.tsx`/`manifest.ts` but absent from `public/`) | 30 min |
+| 3 | Guard role PATCH against demoting the last admin / self-demotion | 1 h |
+| 4 | Add pagination UI (cardiologist queue `limit=50`, admin table `limit=200`) | 2–3 h |
+| 5 | Add upload progress indicator for ECG files | 1 h |
+| 6 | Add a UI path for users without a phone (other than the sign-up form) to add one | 1–2 h |

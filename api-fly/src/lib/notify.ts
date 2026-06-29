@@ -121,6 +121,7 @@ export async function sendToHealthWorker(opts: {
   healthWorkerEmail?: string | null;
   patientName: string;
   severity: string;
+  clinicalNotes: string;
   recommendation: string;
 }): Promise<void> {
   await sendMsg91Template(opts.healthWorkerPhone, MSG91_TEMPLATE_ID_HEALTH_WORKER, [
@@ -129,13 +130,16 @@ export async function sendToHealthWorker(opts: {
     opts.recommendation,
   ]);
   const email = opts.healthWorkerEmail?.trim();
+  const statusLink = `${APP_URL}/my-ecgs`;
   if (email) {
     const subject = `[HridLink] ECG finding — ${opts.patientName} (${opts.severity})`;
     const html = `<p>An ECG finding was submitted for <strong>${escapeHtml(opts.patientName)}</strong>.</p>
 <ul>
 <li><strong>Severity:</strong> ${escapeHtml(opts.severity)}</li>
+<li><strong>Clinical notes:</strong> ${escapeHtml(opts.clinicalNotes)}</li>
 <li><strong>Recommendation:</strong> ${escapeHtml(opts.recommendation)}</li>
-</ul>`;
+</ul>
+<p><a href="${escapeHtml(statusLink)}">View all your ECGs in HridLink</a></p>`;
     await sendAgentmailHtml(email, subject, html);
   }
 }

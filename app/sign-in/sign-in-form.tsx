@@ -1,10 +1,33 @@
 "use client";
 
-import { useFormState } from "react-dom";
+import { useFormState, useFormStatus } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { Loader2 } from "lucide-react";
 import { signInWithEmail } from "./actions";
 import { AuthShell } from "@/components/auth-shell";
+
+function SubmitButton({ children }: { children: React.ReactNode }) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      aria-busy={pending}
+      className="btn-primary w-full py-3 disabled:opacity-60 disabled:cursor-not-allowed"
+    >
+      {pending ? (
+        <>
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          Signing in…
+        </>
+      ) : (
+        children
+      )}
+    </button>
+  );
+}
 
 function SignInForm() {
   const searchParams = useSearchParams();
@@ -64,9 +87,7 @@ function SignInForm() {
             </p>
           ) : null}
 
-          <button type="submit" className="btn-primary w-full py-3">
-            Sign in
-          </button>
+          <SubmitButton>Sign in</SubmitButton>
         </div>
       </form>
     </AuthShell>

@@ -49,6 +49,7 @@ model User {
   createdAt   DateTime @default(now())
 
   uploadedECGs ECGRecord[] @relation("ECGUploader")
+  reviewedFindings Finding[] @relation("FindingReviewer")
 
   @@map("users")
 }
@@ -93,12 +94,14 @@ model ECGRecord {
 model Finding {
   id             String    @id @default(cuid())
   ecgRecordId    String    @unique
+  reviewedById   String?
   severity       Severity
   clinicalNotes  String
   recommendation String
   createdAt      DateTime  @default(now())
 
-  ecgRecord ECGRecord @relation(fields: [ecgRecordId], references: [id], onDelete: Cascade)
+  ecgRecord  ECGRecord @relation(fields: [ecgRecordId], references: [id], onDelete: Cascade)
+  reviewedBy User?     @relation("FindingReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
 
   @@map("findings")
 }

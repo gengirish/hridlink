@@ -7,10 +7,11 @@ test.describe("Sign-in / sign-up HTML validation", () => {
     await expect(page.getByLabel("Email")).toHaveJSProperty("validity.valueMissing", true);
   });
 
-  test("sign-up requires name, email, and password before submit", async ({ page }) => {
+  test("sign-up requires name, email, password, and phone before submit", async ({ page }) => {
     await page.goto("/sign-up");
     await page.getByRole("button", { name: "Create account" }).click();
     await expect(page.getByLabel("Full name")).toHaveJSProperty("validity.valueMissing", true);
+    await expect(page.getByLabel("Mobile number")).toHaveJSProperty("validity.valueMissing", true);
   });
 
   test("sign-up rejects malformed email format", async ({ page }) => {

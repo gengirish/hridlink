@@ -8,6 +8,7 @@ import { Stethoscope, ExternalLink, X, Clock, RefreshCw } from "lucide-react";
 import { submitFindingSchema, type SubmitFindingInput } from "@/lib/validators";
 import type { ApiResponse } from "@/lib/api-response";
 import { PageHeader } from "@/components/page-header";
+import { EcgViewer } from "@/components/ecg-viewer";
 import { cn } from "@/lib/utils";
 
 export type ECGRow = {
@@ -17,12 +18,19 @@ export type ECGRow = {
   healthWorkerNotes: string | null;
   createdAt: string;
   patient: { fullName: string; age: number; village: string; district: string };
-  finding: { severity: string } | null;
+  finding: {
+    severity: string;
+    clinicalNotes: string;
+    recommendation: string;
+    createdAt: string;
+    reviewedBy: { id: string; name: string } | null;
+  } | null;
 };
 
 export type ECGListData = { items: ECGRow[]; total: number; page: number; limit: number };
 
 const IMAGE_EXTS = /\.(svg|png|jpg|jpeg|webp|gif)($|\?)/i;
+const PDF_EXT = /\.pdf($|\?)/i;
 
 type StatusFilter = "PENDING" | "ALL";
 
@@ -50,6 +58,7 @@ export function CardiologistQueue({ initialList }: { initialList: ECGListData | 
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("PENDING");
   const prevFilter = useRef<StatusFilter>(statusFilter);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   const {
     register,
@@ -151,6 +160,21 @@ export function CardiologistQueue({ initialList }: { initialList: ECGListData | 
     };
   }, [selected?.id]);
 
+  useEffect(() => {
+    if (!selected) return;
+    if (typeof document === "undefined") return;
+
+    dialogRef.current?.focus();
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelected(null);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [selected]);
+
   async function onSubmitFinding(data: SubmitFindingInput) {
     if (!selected) return;
     setSubmitting(true);
@@ -176,6 +200,7 @@ export function CardiologistQueue({ initialList }: { initialList: ECGListData | 
 
   const displayUrl = viewerFileUrl;
   const showImage = Boolean(displayUrl && IMAGE_EXTS.test(displayUrl));
+  const showPdf = Boolean(displayUrl && !showImage && PDF_EXT.test(displayUrl));
 
   return (
     <main className="min-h-[calc(100vh-3.5rem)] px-4 py-10 sm:px-6">
@@ -224,7 +249,22 @@ export function CardiologistQueue({ initialList }: { initialList: ECGListData | 
         </div>
 
         {loading ? (
-          <div className="card p-10 text-center text-sm text-ink-500">Loading ECGs…</div>
+          <ul className="space-y-3" aria-hidden="true">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <li key={i}>
+                <div className="card flex w-full items-center justify-between gap-3 p-4 shadow-sm">
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="h-4 w-40 animate-pulse rounded bg-ink-200" />
+                      <div className="h-5 w-16 animate-pulse rounded-full bg-ink-100" />
+                    </div>
+                    <div className="h-3 w-52 animate-pulse rounded bg-ink-100" />
+                  </div>
+                  <div className="h-3 w-12 shrink-0 animate-pulse rounded bg-ink-100" />
+                </div>
+              </li>
+            ))}
+          </ul>
         ) : ecgs.length === 0 ? (
           <div className="card p-10 text-center text-sm text-ink-500">
             {statusFilter === "PENDING" ? "No pending ECGs. You are fully caught up." : "No ECG records found."}
@@ -268,7 +308,9 @@ export function CardiologistQueue({ initialList }: { initialList: ECGListData | 
           onClick={() => setSelected(null)}
         >
           <div
-            className="max-h-[min(92vh,720px)] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-ink-200 bg-white shadow-lift sm:rounded-3xl"
+            ref={dialogRef}
+            tabIndex={-1}
+            className="max-h-[min(92vh,720px)] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-ink-200 bg-white shadow-lift outline-none sm:rounded-3xl"
             role="dialog"
             aria-modal="true"
             aria-labelledby="ecg-review-title"
@@ -299,10 +341,20 @@ export function CardiologistQueue({ initialList }: { initialList: ECGListData | 
                   Loading ECG file…
                 </p>
               )}
-              {showImage && displayUrl && (
-                <div className="overflow-hidden rounded-2xl border border-ink-200 bg-ink-50">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={displayUrl} alt="ECG scan" className="max-h-52 w-full object-contain" />
+              {showImage && displayUrl && <EcgViewer src={displayUrl} alt="ECG scan" />}
+
+              {showPdf && displayUrl && (
+                <iframe
+                  src={displayUrl}
+                  title="ECG PDF preview"
+                  aria-label="ECG PDF preview"
+                  className="h-[min(70vh,560px)] w-full rounded-2xl border border-ink-200 bg-ink-50"
+                />
+              )}
+
+              {displayUrl && !showImage && !showPdf && (
+                <div className="rounded-2xl border border-ink-200 bg-ink-50 px-4 py-3 text-sm text-ink-600">
+                  Non-image file — open in a new tab to review.
                 </div>
               )}
 
@@ -328,11 +380,38 @@ export function CardiologistQueue({ initialList }: { initialList: ECGListData | 
               )}
 
               {selected.finding ? (
-                <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/90 p-4 ring-1 ring-emerald-100">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-900/90">
-                    Already reviewed
+                <div className="space-y-3 rounded-2xl border border-emerald-200/80 bg-emerald-50/90 p-4 ring-1 ring-emerald-100">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-900/90">
+                      Review complete
+                    </p>
+                    {selected.finding.reviewedBy && (
+                      <p className="text-xs text-emerald-800/80">
+                        By {selected.finding.reviewedBy.name}
+                      </p>
+                    )}
+                  </div>
+                  <p className="text-sm font-medium text-emerald-950/90">
+                    Severity: {selected.finding.severity}
                   </p>
-                  <p className="mt-1 text-sm text-emerald-950/90">Severity: {selected.finding.severity}</p>
+                  <div>
+                    <p className="text-xs font-medium text-emerald-900/80">Clinical notes</p>
+                    <p className="mt-1 text-sm leading-relaxed text-emerald-950/90">
+                      {selected.finding.clinicalNotes}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-emerald-900/80">Recommendation</p>
+                    <p className="mt-1 text-sm leading-relaxed text-emerald-950/90">
+                      {selected.finding.recommendation}
+                    </p>
+                  </div>
+                  <p className="text-xs text-emerald-800/70">
+                    Submitted{" "}
+                    {new Date(selected.finding.createdAt).toLocaleString("en-IN", {
+                      timeZone: "Asia/Kolkata",
+                    })}
+                  </p>
                 </div>
               ) : (
                 <form onSubmit={handleSubmit(onSubmitFinding)} className="space-y-4">

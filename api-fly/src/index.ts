@@ -11,11 +11,20 @@ import {
   uploadEcgBlob,
 } from "./lib/blob.js";
 import { sendToCardiologist, sendToHealthWorker } from "./lib/notify.js";
-import { getSessionAppUser, hasAppRole } from "./lib/session.js";
+import { getSessionAppUser, hasAppRole, invalidateSessionCacheByAuthUserId } from "./lib/session.js";
 
 const staffAccess: UserRole[] = [UserRole.HEALTH_WORKER, UserRole.CARDIOLOGIST, UserRole.ADMIN];
 const ecgListAccess: UserRole[] = [UserRole.CARDIOLOGIST, UserRole.ADMIN];
+const ecgMineAccess: UserRole[] = [UserRole.HEALTH_WORKER, UserRole.CARDIOLOGIST, UserRole.ADMIN];
 const ecgUploadAccess: UserRole[] = [UserRole.HEALTH_WORKER, UserRole.CARDIOLOGIST, UserRole.ADMIN];
+
+const findingSelect = {
+  severity: true,
+  clinicalNotes: true,
+  recommendation: true,
+  createdAt: true,
+  reviewedBy: { select: { id: true, name: true } },
+} as const;
 
 const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
@@ -161,7 +170,7 @@ app.get("/api/ecg", async (req, res) => {
           healthWorkerNotes: true,
           createdAt: true,
           patient: { select: { fullName: true, age: true, village: true, district: true } },
-          finding: { select: { severity: true } },
+          finding: { select: findingSelect },
         },
       }),
       prisma.eCGRecord.count({ where }),
@@ -174,6 +183,41 @@ app.get("/api/ecg", async (req, res) => {
   }
 });
 
+app.get("/api/ecg/mine", async (req, res) => {
+  try {
+    const session = await getSessionAppUser(req.headers.cookie);
+    if (!session || session.appRole == null) return err(res, "Authentication required", 401);
+    if (!hasAppRole(session.appRole, ecgMineAccess)) return err(res, "Forbidden", 403);
+    if (!session.userId) return err(res, "User profile not found", 404);
+
+    const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10));
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10)));
+    const where = { uploadedById: session.userId };
+
+    const [records, total] = await prisma.$transaction([
+      prisma.eCGRecord.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take: limit,
+        skip: (page - 1) * limit,
+        select: {
+          id: true,
+          status: true,
+          healthWorkerNotes: true,
+          createdAt: true,
+          patient: { select: { fullName: true, age: true, village: true, district: true, phone: true } },
+          finding: { select: findingSelect },
+        },
+      }),
+      prisma.eCGRecord.count({ where }),
+    ]);
+
+    return ok(res, { items: records, total, page, limit });
+  } catch (e) {
+    return serverErr(res, e, "GET /api/ecg/mine");
+  }
+});
+
 app.get("/api/ecg/:id/signed-file-url", async (req, res) => {
   try {
     const session = await getSessionAppUser(req.headers.cookie);
@@ -183,9 +227,15 @@ app.get("/api/ecg/:id/signed-file-url", async (req, res) => {
     const ecgId = req.params.id;
     const row = await prisma.eCGRecord.findUnique({
       where: { id: ecgId },
-      select: { storagePath: true, fileUrl: true },
+      select: { storagePath: true, fileUrl: true, uploadedById: true },
     });
     if (!row) return err(res, "ECG record not found", 404);
+
+    const isOwner = session.userId && row.uploadedById === session.userId;
+    const canView =
+      hasAppRole(session.appRole, ecgListAccess) ||
+      (isOwner && hasAppRole(session.appRole, ecgMineAccess));
+    if (!canView) return err(res, "Forbidden", 403);
 
     const fileUrl = await getCachedEcgFileUrl({
       storagePath: row.storagePath,
@@ -202,6 +252,20 @@ app.post("/api/ecg", upload.single("file"), async (req, res) => {
     const session = await getSessionAppUser(req.headers.cookie);
     if (!session || session.appRole == null) return err(res, "Authentication required", 401);
     if (!hasAppRole(session.appRole, ecgUploadAccess)) return err(res, "Forbidden", 403);
+
+    if (!session.userId) return err(res, "User profile not found", 404);
+
+    const uploader = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { phone: true },
+    });
+    if (!uploader?.phone) {
+      return err(
+        res,
+        "Add your mobile number in account settings before uploading ECGs so you can receive findings.",
+        422
+      );
+    }
 
     const file = req.file;
     const patientId = typeof req.body.patientId === "string" ? req.body.patientId : null;
@@ -285,7 +349,13 @@ app.patch("/api/ecg/:id/finding", express.json(), async (req, res) => {
 
     const [finding] = await prisma.$transaction([
       prisma.finding.create({
-        data: { ecgRecordId: ecgId, severity: severity as Severity, clinicalNotes, recommendation },
+        data: {
+          ecgRecordId: ecgId,
+          reviewedById: session.userId ?? undefined,
+          severity: severity as Severity,
+          clinicalNotes,
+          recommendation,
+        },
         select: { id: true },
       }),
       prisma.eCGRecord.update({ where: { id: ecgId }, data: { status: newStatus } }),
@@ -299,6 +369,7 @@ app.patch("/api/ecg/:id/finding", express.json(), async (req, res) => {
           healthWorkerEmail: ecgRecord.uploadedBy?.email,
           patientName: ecgRecord.patient.fullName,
           severity,
+          clinicalNotes,
           recommendation,
         });
       } catch (e) {
@@ -325,7 +396,8 @@ app.get("/api/admin/stats", async (req, res) => {
     const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10));
     const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit ?? "100"), 10)));
 
-    const [totalPatients, severityGroups, totalECGs, records] = await prisma.$transaction([
+    const [totalPatients, severityGroups, totalECGs, pendingCount, reviewedCount, records] =
+      await prisma.$transaction([
       prisma.patient.count(),
       prisma.finding.groupBy({
         by: ["severity"],
@@ -333,6 +405,10 @@ app.get("/api/admin/stats", async (req, res) => {
         orderBy: { severity: "asc" },
       }),
       prisma.eCGRecord.count(),
+      prisma.eCGRecord.count({ where: { status: ECGStatus.PENDING } }),
+      prisma.eCGRecord.count({
+        where: { status: { in: [ECGStatus.REVIEWED, ECGStatus.URGENT] } },
+      }),
       prisma.eCGRecord.findMany({
         orderBy: { createdAt: "desc" },
         take: limit,
@@ -342,7 +418,7 @@ app.get("/api/admin/stats", async (req, res) => {
           status: true,
           createdAt: true,
           patient: { select: { fullName: true, village: true, district: true, phone: true } },
-          finding: { select: { severity: true, createdAt: true } },
+          finding: { select: findingSelect },
         },
       }),
     ]);
@@ -359,7 +435,40 @@ app.get("/api/admin/stats", async (req, res) => {
       }
     }
 
-    return ok(res, { totalPatients, totalECGs, bySeverity, records, page, limit });
+    const responseMinutesList = records
+      .filter((r) => r.finding?.createdAt)
+      .map(
+        (r) =>
+          (new Date(r.finding!.createdAt).getTime() - new Date(r.createdAt).getTime()) / 60000
+      )
+      .filter((m) => m >= 0);
+
+    const medianResponseMinutes =
+      responseMinutesList.length > 0
+        ? (() => {
+            const sorted = [...responseMinutesList].sort((a, b) => a - b);
+            const mid = Math.floor(sorted.length / 2);
+            return sorted.length % 2 === 0
+              ? Math.round((sorted[mid - 1]! + sorted[mid]!) / 2)
+              : Math.round(sorted[mid]!);
+          })()
+        : null;
+
+    const completionRate =
+      totalECGs > 0 ? Math.round((reviewedCount / totalECGs) * 100) : 0;
+
+    return ok(res, {
+      totalPatients,
+      totalECGs,
+      pendingCount,
+      reviewedCount,
+      completionRate,
+      medianResponseMinutes,
+      bySeverity,
+      records,
+      page,
+      limit,
+    });
   } catch (e) {
     return serverErr(res, e, "GET /api/admin/stats");
   }
@@ -400,9 +509,20 @@ app.patch("/api/admin/users/:id/role", express.json(), async (req, res) => {
       const user = await prisma.user.update({
         where: { id },
         data: { role },
-        select: { id: true, name: true, email: true, role: true },
+        select: { id: true, name: true, email: true, role: true, authUserId: true },
       });
-      return ok(res, user);
+
+      // Invalidate this user's in-process session cache so the new role takes
+      // effect on their very next API request instead of after the ~5-min TTL.
+      // Note: this cache is per-machine/in-process — in a multi-machine Fly
+      // deployment other machines would still honor their own TTL (acceptable
+      // for the single auto-start machine pilot).
+      if (user.authUserId) {
+        invalidateSessionCacheByAuthUserId(user.authUserId);
+      }
+
+      const { authUserId: _authUserId, ...userResponse } = user;
+      return ok(res, userResponse);
     } catch (updateErr: unknown) {
       if (
         typeof updateErr === "object" &&

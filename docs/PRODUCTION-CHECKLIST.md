@@ -42,11 +42,14 @@ After changing secrets, redeploy the Fly app if needed so new machines pick them
 
 Run these against the **production** Vercel URL (cookies are host-scoped).
 
+See [MSG91-WHATSAPP-SETUP.md](./MSG91-WHATSAPP-SETUP.md) for WhatsApp configuration before testing notifications.
+
 1. **Sign in** — Complete Neon Auth sign-in as a health worker (and separately as cardiologist / admin if you have test accounts). Confirm session persists across navigation.
 2. **Register patient** — Create a patient with realistic credentials (name, demographics, phone, etc.) and confirm success (no 401 on `/api/patients`).
 3. **Upload ECG** — Attach file, associate with patient, submit; confirm record appears and storage URL is valid.
-4. **Cardiologist dashboard** — Sign in as cardiologist; open dashboard, list pending ECGs, open an ECG, submit a finding; confirm status updates.
-5. **Admin** — Sign in as admin; open admin stats / tables and confirm aggregates load.
+4. **My ECGs** — Health worker opens `/my-ecgs`; pending upload appears; after review, full finding text is visible.
+5. **Cardiologist dashboard** — Sign in as cardiologist; open dashboard, list pending ECGs, open an ECG (zoom viewer), submit a finding; confirm status updates and reviewer name in admin export.
+6. **Admin** — Sign in as admin; confirm median response time, completion rate, and CSV export with reviewer columns.
 
 If any step returns **401 Unauthorized**, confirm the user completed sign-in on the same origin and that Neon Auth + cookie secret match across Vercel and Fly.
 

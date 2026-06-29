@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { memo, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import {
   Heart,
   UserPlus,
@@ -12,22 +12,48 @@ import {
   LogIn,
   LogOut,
   BookOpen,
+  ClipboardList,
 } from "lucide-react";
 import { authClient } from "@/lib/auth/client";
 import { cn } from "@/lib/utils";
 
+type AppRole = "HEALTH_WORKER" | "CARDIOLOGIST" | "ADMIN";
+
 const links = [
   { href: "/register", label: "Register", icon: UserPlus },
   { href: "/ecg-upload", label: "Upload ECG", icon: Upload },
+  { href: "/my-ecgs", label: "My ECGs", icon: ClipboardList },
   { href: "/cardiologist", label: "Cardiologist", icon: Stethoscope },
   { href: "/admin", label: "Admin", icon: LayoutDashboard },
 ] as const;
 
-const NavLinks = memo(function NavLinks({ pathname }: { pathname: string }) {
+type NavLink = (typeof links)[number];
+
+// Safe default for a signed-in user whose role hasn't resolved yet (or HEALTH_WORKER).
+function linksForRole(role: AppRole | null): readonly NavLink[] {
+  switch (role) {
+    case "ADMIN":
+      return links.filter((l) => l.href === "/admin" || l.href === "/cardiologist");
+    case "CARDIOLOGIST":
+      return links.filter((l) => l.href === "/cardiologist" || l.href === "/ecg-upload");
+    default:
+      return links.filter(
+        (l) => l.href === "/register" || l.href === "/ecg-upload" || l.href === "/my-ecgs"
+      );
+  }
+}
+
+const NavLinks = memo(function NavLinks({
+  pathname,
+  links: visibleLinks,
+}: {
+  pathname: string;
+  links: readonly NavLink[];
+}) {
   return (
     <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:justify-center sm:gap-0.5">
       <div className="flex max-w-[min(100%,28rem)] items-center gap-0.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] sm:max-w-none [&::-webkit-scrollbar]:hidden">
-        {links.map((l) => {
+        {visibleLinks.map((l) => {
           const active = pathname === l.href || pathname.startsWith(`${l.href}/`);
           const Icon = l.icon;
           return (
@@ -52,9 +78,16 @@ const NavLinks = memo(function NavLinks({ pathname }: { pathname: string }) {
   );
 });
 
-function NavAuth({ pathname }: { pathname: string }) {
+function NavAuth({
+  pathname,
+  session,
+  isPending,
+}: {
+  pathname: string;
+  session: ReturnType<typeof authClient.useSession>["data"];
+  isPending: boolean;
+}) {
   const router = useRouter();
-  const { data: session, isPending } = authClient.useSession();
   const [signingOut, setSigningOut] = useState(false);
 
   async function handleSignOut() {
@@ -119,7 +152,32 @@ function NavAuth({ pathname }: { pathname: string }) {
 
 export function AppNav() {
   const pathname = usePathname();
+  const { data: session, isPending } = authClient.useSession();
+  const signedIn = !!session?.user;
+  const [role, setRole] = useState<AppRole | null>(null);
+
+  useEffect(() => {
+    if (!signedIn) {
+      setRole(null);
+      return;
+    }
+    let cancelled = false;
+    fetch("/api/me", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { role?: AppRole | null } | null) => {
+        if (!cancelled) setRole(data?.role ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setRole(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [signedIn]);
+
   if (pathname.startsWith("/sign-")) return null;
+
+  const visibleLinks = signedIn ? linksForRole(role) : [];
 
   return (
     <nav
@@ -142,8 +200,8 @@ export function AppNav() {
           </span>
         </Link>
 
-        <NavLinks pathname={pathname} />
-        <NavAuth pathname={pathname} />
+        <NavLinks pathname={pathname} links={visibleLinks} />
+        <NavAuth pathname={pathname} session={session} isPending={isPending} />
       </div>
     </nav>
   );

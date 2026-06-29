@@ -12,9 +12,10 @@ const roles = [
     title: "Health worker",
     email: "Any email (no special role)",
     steps: [
-      "Sign up at /sign-up with any email you control.",
+      "Sign up at /sign-up with any email — mobile number is required for WhatsApp alerts.",
       "Open Register → add a patient (mobile will be used to find them later).",
       "Open Upload ECG → search by mobile → attach an image or PDF → submit.",
+      "Open My ECGs → track pending reviews and read cardiologist findings in-app.",
     ],
   },
   {
@@ -37,8 +38,9 @@ const roles = [
     email: "admin@hridlink.com",
     steps: [
       "Sign up at /sign-up with admin@hridlink.com.",
-      "Open Admin → scan pilot counters and triage mix.",
-      "Export CSV for offline reporting.",
+      "Open Admin → scan pilot counters (median response, completion rate) and triage mix.",
+      "Use Team tab to promote real cardiologists — no DB edits needed.",
+      "Export CSV for offline reporting (includes reviewer and clinical notes).",
     ],
   },
 ] as const;
@@ -106,6 +108,7 @@ export default function DemoPage() {
               ["/sign-in", "Sign in"],
               ["/register", "Register patient"],
               ["/ecg-upload", "Upload ECG"],
+              ["/my-ecgs", "My ECGs"],
               ["/cardiologist", "Cardiologist"],
               ["/admin", "Admin stats"],
             ].map(([href, label]) => (
@@ -120,9 +123,10 @@ export default function DemoPage() {
           <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">End-to-end smoke</p>
           <ol className="mt-4 space-y-3">
             {[
-              "Health worker: register patient → upload ECG photo.",
+              "Health worker: register patient → upload ECG photo → open My ECGs.",
               "New session: sign up as cardiologist → open queue → submit an URGENT finding.",
-              "New session: sign up as admin → confirm counters + export CSV.",
+              "Health worker: confirm finding appears on My ECGs (and WhatsApp if MSG91 configured).",
+              "New session: sign up as admin → confirm median response + export CSV.",
             ].map((step, i) => (
               <li key={step} className="flex gap-3 text-sm leading-relaxed text-ink-700">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-white shadow-sm ring-1 ring-black/10">

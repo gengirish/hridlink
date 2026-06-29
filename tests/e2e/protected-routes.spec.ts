@@ -10,4 +10,9 @@ test.describe("Protected routes (unauthenticated)", () => {
     await page.goto("/cardiologist");
     await expect(page).toHaveURL(/\/sign-in/);
   });
+
+  test("redirects /my-ecgs to sign-in", async ({ page }) => {
+    await page.goto("/my-ecgs");
+    await expect(page).toHaveURL(/\/sign-in/);
+  });
 });
