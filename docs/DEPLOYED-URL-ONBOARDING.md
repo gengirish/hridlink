@@ -69,10 +69,12 @@ npx --yes prisma@5.22.0 migrate deploy
 
 ## 5. First accounts and roles
 
+**Beta demo (fastest):** Run `npm run db:seed-beta` against this database, then share [BETA-DEMO-USERS.md](./BETA-DEMO-USERS.md) with testers. Pre-seeded emails claim roles on first sign-up.
+
 1. Open **`VERCEL_APP_URL`** in the browser.
 2. Go to **Sign up** and create the first user (defaults to **health worker** in the app database after sign-in / sign-up).
 3. **Register patient** and **ECG upload** require an active session on that same origin — sign in first if you see “Please sign in as a health worker”.
-4. To grant **cardiologist** or **admin** dashboard access, promote the user in Postgres (table `users`, column `role` is an enum). Example by email (adjust email and role):
+4. To grant **cardiologist** or **admin** dashboard access, use **Admin → Team** role dropdown, or promote in Postgres:
 
 ```sql
 UPDATE "users"

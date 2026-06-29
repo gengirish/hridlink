@@ -11,6 +11,7 @@
     "lint": "next lint",
     "db:migrate": "npx --yes prisma@5.22.0 migrate dev",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed-beta": "tsx prisma/seed-beta.ts",
     "db:studio": "prisma studio",
     "test:e2e": "npx --yes @playwright/test test",
     "test:e2e:ui": "npx --yes @playwright/test test --ui",
