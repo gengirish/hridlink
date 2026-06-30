@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Toaster } from "sonner";
 import { AppNav } from "@/components/app-nav";
+import { WelcomeToast } from "@/components/welcome-toast";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -38,6 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <AppNav />
         {children}
+        <WelcomeToast />
         <Toaster position="top-center" richColors />
       </body>
     </html>

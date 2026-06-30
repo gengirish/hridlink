@@ -1,10 +1,22 @@
 "use server";
 
+import { getSessionAppUser } from "@/lib/auth/app-user";
 import { formatAuthActionError } from "@/lib/auth/format-auth-action-error";
 import { auth } from "@/lib/auth/server";
 import { syncAppUserFromSession } from "@/lib/auth/sync-app-user";
 import { getFormString } from "@/lib/get-form-string";
+import { defaultPathForRole } from "@/lib/roles";
 import { redirect } from "next/navigation";
+
+/** Append the post-login welcome flag so the client can surface a "signed in as" toast. */
+function withWelcome(path: string): string {
+  return path.includes("?") ? `${path}&welcome=1` : `${path}?welcome=1`;
+}
+
+function isSafeReturnTo(returnTo: string): boolean {
+  const t = returnTo.trim();
+  return t.startsWith("/") && !t.startsWith("//");
+}
 
 export async function signInWithEmail(
   _prevState: { error: string } | null,
@@ -13,9 +25,8 @@ export async function signInWithEmail(
   const returnTo = getFormString(formData, "returnTo");
   const { data: existing } = await auth.getSession();
   if (existing?.user) {
-    const target = returnTo.trim();
-    if (target.startsWith("/") && !target.startsWith("//")) {
-      redirect(target);
+    if (isSafeReturnTo(returnTo)) {
+      redirect(returnTo.trim());
     }
     redirect("/");
   }
@@ -33,8 +44,10 @@ export async function signInWithEmail(
 
   await syncAppUserFromSession();
 
-  if (returnTo.startsWith("/") && !returnTo.startsWith("//")) {
-    redirect(returnTo);
+  if (isSafeReturnTo(returnTo)) {
+    redirect(withWelcome(returnTo.trim()));
   }
-  redirect("/");
+
+  const appUser = await getSessionAppUser();
+  redirect(withWelcome(defaultPathForRole(appUser?.appRole)));
 }

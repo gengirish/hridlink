@@ -1,10 +1,12 @@
 "use server";
 
+import { getSessionAppUser } from "@/lib/auth/app-user";
 import { formatAuthActionError } from "@/lib/auth/format-auth-action-error";
 import { auth } from "@/lib/auth/server";
 import { syncAppUserFromSession } from "@/lib/auth/sync-app-user";
 import { getFormString } from "@/lib/get-form-string";
 import { prisma } from "@/lib/prisma";
+import { defaultPathForRole } from "@/lib/roles";
 import { redirect } from "next/navigation";
 
 function normalizeIndianPhone(raw: string): string {
@@ -61,5 +63,7 @@ export async function signUpWithEmail(
     });
   }
 
-  redirect("/");
+  const appUser = await getSessionAppUser();
+  const target = defaultPathForRole(appUser?.appRole);
+  redirect(target.includes("?") ? `${target}&welcome=1` : `${target}?welcome=1`);
 }
