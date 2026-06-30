@@ -8,6 +8,10 @@ test.describe("Auth pages (guest)", () => {
     await expect(page.getByLabel("Password")).toBeVisible();
     await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Create one" })).toHaveAttribute("href", "/sign-up");
+    await expect(page.getByRole("link", { name: "Forgot password?" })).toHaveAttribute(
+      "href",
+      "/forgot-password",
+    );
   });
 
   test("sign-up page renders form", async ({ page }) => {

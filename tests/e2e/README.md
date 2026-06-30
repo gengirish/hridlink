@@ -19,7 +19,8 @@ Most specs use **route mocks** for `/api/patients` and `/api/ecg` so they stay d
 
 Coverage highlights:
 
-- **Auth UI:** sign-in / sign-up forms, HTML5 validation (`sign-in-up-validation.spec.ts`).
+- **Auth UI:** sign-in / sign-up forms incl. the "Forgot password?" link, HTML5 validation (`sign-in-up-validation.spec.ts`).
+- **Password reset:** forgot-password (disabled-until-email, generic check-your-inbox confirmation, "try a different email", request error) and reset-password (missing/`INVALID_TOKEN` broken-link state, password mismatch, mocked success redirect, expired-token error). Neon Auth `request-password-reset` / `reset-password` endpoints are route-mocked, so no live Neon Auth backend is needed.
 - **Public flows:** home, nav, register (validation + mocked API success/errors), ECG upload (happy path, resets, API error toasts, file remove, notes).
 - **Routing:** protected redirects, 404, demo, **PWA manifest** (`manifest.spec.ts`).
 
